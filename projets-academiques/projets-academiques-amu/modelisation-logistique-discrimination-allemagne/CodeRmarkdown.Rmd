@@ -1,0 +1,812 @@
+---
+title: "Project de R"
+author: "HASSAK Arezki, GRONDIN Mathieu, SIDIBE Ablaye sow"
+date: "2024-03-14"
+output: word_document
+---
+
+## **Projet** **Programmation R pour la modélisation des données en SHS**
+
+```{r}
+
+# code pour la bonne organisation des dossiers du travail pour ce module de Langage R
+
+path <- 'E:/Master _MASS/S2/Programmation R pour la modélisation des données en SHS/PROJECT/'
+dir.create(paste(path, "data_in", sep=""))
+dir.create(paste(path, "data_out", sep=""))
+dir.create(paste(path, "code", sep=""))
+dir.create(paste(path, "figures", sep=""))
+dir.create(paste(path, "report", sep=""))
+
+# Changement du répertoire de travail vers le dossier 'code'
+setwd(paste(path, "code", sep=""))
+```
+
+```{r}
+setwd("E:/Master _MASS/S2/Programmation R pour la modélisation des données en SHS/PROJECT/code")
+```
+
+**Question 1**
+
+```{r}
+#importation des donnees
+asile_4 <- read.table("asile_4.txt", header = TRUE,sep=";")
+
+asile_4$ident <- as.factor(asile_4$ident)
+asile_4$y <- as.factor(asile_4$y)
+asile_4$work <- as.factor(asile_4$work)
+asile_4$tmpsorigine <- as.factor(asile_4$tmpsorigine)
+asile_4$tmpsallemand <- as.factor(asile_4$tmpsallemand)
+asile_4$speak_german <- as.factor(asile_4$speak_german)
+asile_4$exclu <- as.factor(asile_4$exclu)
+asile_4$sexe <- as.factor(asile_4$sexe)
+asile_4$ind_origine <- as.factor(asile_4$ind_origine)
+asile_4$integrationcourse <- as.factor(asile_4$integrationcourse)
+asile_4$age <- as.numeric(asile_4$age)
+
+# Dénomination des codes 
+
+levels(asile_4$y)<-c("non","oui")
+levels(asile_4$y)
+
+levels(asile_4$work)<-c("non","non éligible","oui" )
+levels(asile_4$work)
+
+levels(asile_4$tmpsorigine)<-c("fréquemment","occasionnellement","jamais" )
+levels(asile_4$tmpsorigine)
+
+levels(asile_4$tmpsallemand)<-c("fréquemment","occasionnellement","jamais" )
+levels(asile_4$tmpsallemand)
+
+levels(asile_4$speak_german)<-c("oui","non")
+levels(asile_4$speak_german)
+
+levels(asile_4$exclu)<-c("fréquemment","occasionnellement","jamais")
+levels(asile_4$exclu)
+
+levels(asile_4$sexe)<-c("homme"," femme")
+levels(asile_4$sexe)
+
+levels(asile_4$ind_origine)<-c("oui","non")
+levels(asile_4$ind_origine)
+
+levels(asile_4$integrationcourse)<-c("oui","non")
+levels(asile_4$integrationcourse)
+
+```
+
+**Question 2**
+
+```{r}
+# Tri à plat de chacune des variables du jeu de données 
+summary(asile_4)
+
+```
+
+```{r}
+# Graphes 
+# Variable 'y'
+barplot(table(asile_4$y), main="Distribution de la variable 'y'", xlab="y", ylab="Fréquence", col="blue")
+
+# Variable 'work'
+#barplot(table(asile_4$work), main="Distribution de la variable 'work'", xlab="work", ylab="Fréquence", names.arg=c("Non", "Oui", "Non éligible"), col="green")
+
+# Variable 'tmpsorigine'
+#barplot(table(asile_4$tmpsorigine), main="Distribution de la variable 'tmpsorigine'", xlab="tmpsorigine", ylab="Fréquence", names.arg=c("Fréquemment", "Occasionnellement", "Jamais"), col="red")
+
+# Variable 'tmpsallemand'
+#barplot(table(asile_4$tmpsallemand), main="Distribution de la variable 'tmpsallemand'", xlab="tmpsallemand", ylab="Fréquence", names.arg=c("Fréquemment", "Occasionnellement", "Jamais"), col="orange")
+
+# Variable 'speak_german'
+barplot(table(asile_4$speak_german), main="Distribution de la variable 'speak_german'", xlab="speak_german", ylab="Fréquenc", names.arg=c("Oui", "Non"), col="purple")
+
+# Variable 'exclu'
+#barplot(table(asile_4$exclu), main="Distribution de la variable 'exclu'", xlab="exclu", ylab="Fréquence", names.arg=c("Fréquemment", "Occasionnellement", "Jamais"), col="yellow")
+
+# Variable 'sexe'
+barplot(table(asile_4$sexe), main="Distribution de la variable 'sexe'", xlab="sexe", ylab="Fréquence", names.arg=c("Homme", "Femme"), col="cyan")
+
+# Variable 'ind_origine'
+barplot(table(asile_4$ind_origine), main="Distribution de la variable 'ind_origine'", xlab="ind_origine", ylab="Fréquence", names.arg=c("Syrienne", "Autre"), col="brown")
+
+# Variable 'integrationcourse'
+barplot(table(asile_4$integrationcourse), main="Distribution de la variable 'integrationcourse'", xlab="integrationcourse", ylab="Fréquence", names.arg=c("Oui", "Non"), col="pink")
+
+```
+
+```{r}
+# Variable 'y'
+cat("Table de contingence pour la variable 'y':\n")
+print(table(asile_4$y))
+
+# Variable 'work'
+cat("\nTable de contingence pour la variable 'work':\n")
+print(table(asile_4$work))
+
+# Variable 'tmpsorigine'
+cat("\nTable de contingence pour la variable 'tmpsorigine':\n")
+print(table(asile_4$tmpsorigine))
+
+# Variable 'tmpsallemand'
+cat("\nTable de contingence pour la variable 'tmpsallemand':\n")
+print(table(asile_4$tmpsallemand))
+
+# Variable 'speak_german'
+cat("\nTable de contingence pour la variable 'speak_german':\n")
+print(table(asile_4$speak_german))
+
+# Variable 'exclu'
+cat("\nTable de contingence pour la variable 'exclu':\n")
+print(table(asile_4$exclu))
+
+# Variable 'sexe'
+cat("\nTable de contingence pour la variable 'sexe':\n")
+print(table(asile_4$sexe))
+
+# Variable 'ind_origine'
+cat("\nTable de contingence pour la variable 'ind_origine':\n")
+print(table(asile_4$ind_origine))
+
+# Variable 'integrationcourse'
+cat("\nTable de contingence pour la variable 'integrationcourse':\n")
+print(table(asile_4$integrationcourse))
+
+```
+
+**Les barplots des variables à 2 modalités**
+
+**Variable Y**
+
+```{r}
+# Charger la librairie ggplot2
+library(ggplot2)
+
+# Calculer les pourcentages
+counts_y <- table(asile_4$y)
+percentage_y <- prop.table(counts_y) * 100
+
+# Créer le barplot
+p <- ggplot(data.frame(y = names(counts_y), count = as.vector(counts_y)), aes(x = y, y = count, fill = y)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Catégorie", y = "Fréquence", title = " Le sentiment d’avoir déjà été discriminé au moins une fois") +
+  theme_minimal()
+
+# Ajouter les pourcentages
+p + geom_text(aes(label = paste0(round(percentage_y, 1), "%")), vjust = -0.5)
+
+
+
+```
+
+**Variable speak_german**
+
+```{r}
+
+# Calculer les pourcentages
+counts_speak_german <- table(asile_4$speak_german)
+percentage_speak_german <- prop.table(counts_speak_german) * 100
+
+# Créer le barplot
+p <- ggplot(data.frame(speak_german = names(counts_speak_german), count = as.vector(counts_speak_german)), aes(x = speak_german, y = count, fill = speak_german)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Parle allemand", y = "Fréquence", title = "Distribution de l'enquêté parle-t-il allemand ?") +
+  theme_minimal()
+
+# Ajouter les pourcentages
+p + geom_text(aes(label = paste0(round(percentage_speak_german, 1), "%")), vjust = -0.5) 
+
+
+
+```
+
+**Variable sexe**
+
+```{r}
+# Calculer les pourcentages
+counts_sexe <- table(asile_4$sexe)
+percentage_sexe <- prop.table(counts_sexe) * 100
+
+# Créer le barplot
+p_sexe <- ggplot(data.frame(sexe = names(counts_sexe), count = as.vector(counts_sexe)), aes(x = sexe, y = count, fill = sexe)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Sexe", y = "Fréquence", title = "Distribution du sexe des enquêtés") +
+  theme_minimal()
+
+# Ajouter les pourcentages
+p_sexe + geom_text(aes(label = paste0(round(percentage_sexe, 1), "%")), vjust = -0.5) 
+
+```
+
+**Variable ind_origine**
+
+```{r}
+# Calculer les pourcentages
+counts_ind_origine <- table(asile_4$ind_origine)
+percentage_ind_origine <- prop.table(counts_ind_origine) * 100
+
+# Créer le barplot
+p_ind_origine <- ggplot(data.frame(ind_origine = names(counts_ind_origine), count = as.vector(counts_ind_origine)), aes(x = ind_origine, y = count, fill = ind_origine)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Origine syrienne", y = "Fréquence", title = "Distribution de l'origine syrienne") +
+  theme_minimal()
+
+# Ajouter les pourcentages
+p_ind_origine + geom_text(aes(label = paste0(round(percentage_ind_origine, 1), "%")), vjust = -0.5) 
+
+
+```
+
+**Variable integrationcourse**
+
+```{r}
+# Calculer les pourcentages
+counts_integrationcourse <- table(asile_4$integrationcourse)
+percentage_integrationcourse <- prop.table(counts_integrationcourse) * 100
+
+# Créer le barplot
+p_integrationcourse <- ggplot(data.frame(integrationcourse = names(counts_integrationcourse), count = as.vector(counts_integrationcourse)), aes(x = integrationcourse, y = count, fill = integrationcourse)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Cours d'intégration", y = "Fréquence", title = "Distribution des cours d'intégration") +
+  theme_minimal()
+
+# Ajouter les pourcentages
+p_integrationcourse + geom_text(aes(label = paste0(round(percentage_integrationcourse, 1), "%")), vjust = -0.5) 
+
+```
+
+**Les boîtes à camembert (pie) des variables à 3 modalités**
+
+```{r}
+# Fonction text_pie
+text_pie <- function(vector, labels, cex=1) {
+  vector <- vector/sum(vector)*2*pi
+  temp <- c()
+  j <- 0
+  l <- 0
+  for (i in 1:length(vector)) {
+    k <- vector[i]/2        
+    j <- j+l+k
+    l <- k
+    text(cos(j)/2, sin(j)/2, labels[i], cex=cex)
+  }
+  vector <- temp
+}
+```
+
+**Variable tmpsallemand**
+
+```{r}
+# Variable 'tmpsallemand'
+counts_tmpsallemand <- table(asile_4$tmpsallemand)
+labels_tmpsallemand <- c("Fréquemment", "Occasionnellement", "Jamais")
+colors_tmpsallemand <- c("green", "red", "yellow")
+
+# Calculer les pourcentages
+total_tmpsallemand <- sum(counts_tmpsallemand)
+pourcentages_tmpsallemand <- counts_tmpsallemand / total_tmpsallemand * 100
+
+# Tracer le graphique en camembert
+
+pie(counts_tmpsallemand,main="Temps passé avec des personnes allemandes" ,col=colors_tmpsallemand, labels =labels_tmpsallemand,sub = "Répartition de la variable tmpsallemand" )
+text_pie(pourcentages_tmpsallemand, labels=paste0(round(pourcentages_tmpsallemand, 1), "%"), cex=1.1)
+legend("bottomright", legend=labels_tmpsallemand, cex=0.7, fill=colors_tmpsallemand, horiz=F)
+
+```
+
+**Variable work**
+
+```{r}
+# Variable 'work'
+counts_work <- table(asile_4$work)
+labels_work <- c("Non", "Oui", "Non éligible")
+colors_work <- c("green", "red", "yellow")
+
+# Calculer les pourcentages
+total_work <- sum(counts_work)
+pourcentages_work <- counts_work / total_work * 100
+
+# Tracer le graphique en camembert
+
+pie(counts_work, col=colors_work, labels = labels_work, main="Occupation professionnelle", sub="Répartition de  variable 'work'")
+text_pie(pourcentages_work, labels=paste0(round(pourcentages_work, 1), "%"), cex=1.1)
+legend("bottomleft", legend=labels_work, cex=0.7, fill=colors_work, horiz=F)
+
+```
+
+**Variable tmpsorigine**
+
+```{r}
+# Augmenter la taille du graphe
+
+options(repr.plot.width=8, repr.plot.height=6) 
+
+# Variable 'tmpsorigine'
+counts_tmpsorigine <- table(asile_4$tmpsorigine)
+labels_tmpsorigine <- c("Fréquemment", "Occasionnellement", "Jamais")
+colors_tmpsorigine <- c("green", "red", "yellow")
+
+# Calculer les pourcentages
+total_tmpsorigine <- sum(counts_tmpsorigine)
+pourcentages_tmpsorigine <- counts_tmpsorigine / total_tmpsorigine * 100
+
+# Tracer le graphique en camembert
+
+pie(counts_tmpsorigine, col=colors_tmpsorigine, main="Temps passé avec des personnes de même origine", sub = "Répartition la variable 'tmpsorigine' ")
+text_pie(pourcentages_tmpsorigine, labels=paste0(round(pourcentages_tmpsorigine, 1), "%"), cex=1.1)
+legend("topright", legend=labels_tmpsorigine, cex=0.7, fill=colors_tmpsorigine, horiz=F)
+
+
+
+
+
+```
+
+**boxplot pour la variable age**
+
+```{r}
+boxplot(asile_4$age, 
+        ylab = "Age",
+        main = "Age de l’enquêté au jour de l’enquête",
+        col ="red", 
+        las = 1,
+        )
+```
+
+```{r}
+library(dplyr)
+
+# Calculer les pourcentages des âges dans chaque classe
+age_counts <- asile_4 %>%
+  mutate(age_class = cut(age, breaks = seq(0, 100, by = 10), labels = classes_age)) %>%
+  group_by(age_class) %>%
+  summarise(count = n()) %>%
+  mutate(percentage = (count / sum(count)) * 100)
+
+# Créer l'histogramme avec les pourcentages
+ggplot(age_counts, aes(x = age_class, y = percentage)) +
+  geom_bar(stat = "identity", fill = "#0073C2FF") +
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), vjust = -0.5, size = 3) +
+  labs(x = "Âge", y = "Pourcentage", title = "Distribution des pourcentages d'âge par classe") +
+  theme_minimal()
+
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Définir les étiquettes des classes d'âge
+classes_age <- c("0-9", "10-19", "20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80-89", "90-99")
+
+# Calculer les pourcentages des âges dans chaque classe
+age_counts <- asile_4 %>%
+  mutate(age_class = cut(age, breaks = seq(0, 100, by = 10), labels = classes_age)) %>%
+  group_by(age_class) %>%
+  summarise(count = n()) %>%
+  mutate(percentage = (count / sum(count)) * 100)
+
+# Créer l'histogramme avec les pourcentages
+ggplot(age_counts, aes(x = age_class, y = percentage)) +
+  geom_bar(stat = "identity", fill = "#0073C2FF") +
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), vjust = -0.5, size = 3) +
+  labs(x = "Âge", y = "Pourcentage", title = "Distribution des pourcentages d'âge par classe") +
+  theme_minimal()
+
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Définir les bornes des intervalles d'âge
+bornes_age <- c(18, 26, 32, 40, 76)
+
+# Définir les étiquettes des classes d'âge en fonction des intervalles
+classes_age <- c("[18,26[", "[26,32[", "[32,40[", "[40,76]")
+
+# Calculer les pourcentages des âges dans chaque classe
+age_counts <- asile_4 %>%
+  filter(!is.na(age)) %>%
+  mutate(age_class = cut(age, breaks = bornes_age, labels = classes_age, right = F, na.rm = TRUE)) %>%
+  group_by(age_class) %>%
+  summarise(count = n()) %>%
+  mutate(percentage = (count / sum(count)) * 100)
+
+# Créer l'histogramme avec les pourcentages
+ggplot(age_counts, aes(x = age_class, y = percentage)) +
+  geom_bar(stat = "identity", fill = "#0073C2FF") +
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), vjust = -0.5, size = 3) +
+  labs(x = "Intervalles d'âge", y = "Pourcentage", title = "Distribution des pourcentages d'âge par intervalle") +
+  theme_minimal()
+
+
+```
+
+**Question 3**
+
+```{r}
+
+# Importer les librairies nécessaires
+library(dplyr)
+
+# Variables qualitatives du jeu de données (à l'exception de 'y')
+qualitative_vars <- c("work", "tmpsorigine", "tmpsallemand", "speak_german", "exclu", "sexe", "ind_origine", "integrationcourse")
+
+# Réaliser le test du chi-deux pour chaque paire de variables
+for (var in qualitative_vars) {
+  cross_tab <- table(asile_4$y, asile_4[[var]])
+  chi_sq_test <- chisq.test(cross_tab)
+  print(paste("Test du chi-deux d'indépendance entre 'y' et", var))
+  print(chi_sq_test)
+  
+  # Interprétation du test
+  cat("\n")
+  cat("Interprétation:\n")
+  if (chi_sq_test$p.value < 0.05) {
+    cat("Il y a une association significative entre 'y' et", var, "\n")
+  } else {
+    cat("Il n'y a pas suffisamment de preuves pour conclure à une association significative entre 'y' et", var, "\n")
+  }
+  cat("------------------------------------------------------\n")
+}
+
+```
+
+**Question 4**
+
+```{r}
+# Test d'ANOVA entre y et age
+anova_result <- aov(age ~ as.factor(y), data = asile_4)
+
+# Afficher les résultats
+print(summary(anova_result))
+
+
+
+
+```
+
+-   Le facteur **`as.factor(y)`** a un effet significatif sur la variable **`age`**, avec une valeur p très faible (**`Pr(>F)`** \< 0.001). Cela signifie qu'il existe une association significative entre le sentiment d'avoir été discriminé au moins une fois (**`y`**) et l'âge des individus.
+
+En termes plus simples, cette analyse suggère qu'il existe une relation significative entre le fait d'avoir été discriminé au moins une fois et l'âge des enquêtés. Cependant, l'interprétation précise de cette association nécessiterait une analyse plus approfondie des données et du contexte de l'étude.
+
+**Question 5**
+
+$$
+\log\left(\frac{P(Y=1 \,|\, \text{age}, \text{sexe})}{1 - P(Y=1 \,|\, \text{age}, \text{sexe})}\right) = \beta_0 + \beta_1 \cdot \text{age} + \beta_2 \cdot \text{sexe}
+\\
+\log\left(\frac{P(Y=1 \,|\, \text{age}, \text{sexe}=1)}{1 - P(Y=1 \,|\, \text{age}, \text{sexe}=1)}\right) = \beta_0 + \beta_1 \cdot \text{age} + \beta_2 \\log\left(\frac{P(Y=1 \,|\, \text{age}, \text{sexe}=0)}{1 - P(Y=1 \,|\, \text{age}, \text{sexe}=0)}\right) = \beta_0 + \beta_1 \cdot \text{age}
+$$
+
+L'interprétation des coefficients est la suivante :
+
+-   β0​ : C'est l'effet constant sur le log odds (ou logit) de la probabilité de Y=1 lorsque toutes les autres variables sont égales à zéro.
+
+-   β1​ : Il représente le changement moyen dans le log odds de Y=1 pour une unité de changement dans la variable continue ageage, toutes choses étant égales par ailleurs.
+
+-   β2​ : C'est le changement moyen dans le log odds de Y=1 lorsque la modalité de la variable sexesexe passe de 0 (femme) à 1 (homme), toutes choses étant égales par ailleurs.
+
+**Question 6**
+
+```{r}
+# Estimation du modèle logistique
+model <- glm(y ~ age + sexe, data = asile_4, family = binomial)
+
+# Résumé des résultats
+summary(model)
+
+
+```
+
+Dans le modèle logistique estimé, les coefficients associés à chaque variable explicative sont les suivants :
+
+1.  **Âge (age)** :
+
+    -   L'estimation du coefficient pour l'âge est de -0.017948 avec un écart type de 0.004657.
+
+    -   La valeur z associée à ce coefficient est -3.854, et la valeur p correspondante est extrêmement faible (0.000116), indiquant une significativité statistique.
+
+    -   L'interprétation de ce coefficient est qu'une augmentation d'une unité dans l'âge est associée à une diminution logarithmique de l'odds d'avoir le sentiment d'avoir été discriminé au moins une fois, toutes choses étant égales par ailleurs.
+
+2.  **Sexe (sexe)** :
+
+    -   L'estimation du coefficient pour la variable "sexe femme" est de -0.232222 avec un écart type de 0.097276.
+
+    -   La valeur z associée à ce coefficient est -2.387, et la valeur p correspondante est de 0.016975, ce qui est inférieur à 0.05, indiquant une significativité statistique à un niveau de confiance de 95%.
+
+    -   L'interprétation de ce coefficient est que le sexe féminin est associé à une diminution logarithmique de l'odds d'avoir le sentiment d'avoir été discriminé au moins une fois, toutes choses étant égales par ailleurs.
+
+En résumé, l'âge et le sexe semblent être des variables significatives pour prédire le sentiment d'avoir été discriminé au moins une fois. Une augmentation de l'âge est associée à une diminution de cet odds, tandis que le sexe féminin est également associé à une diminution de cet odds.
+
+**Question 7**
+
+```{r}
+# Définir les valeurs des variables explicatives pour l'individu
+nouvel_individu <- data.frame(age = 30, sexe = "homme")
+
+# Estimer la probabilité d'avoir le sentiment d'avoir été discriminé au moins une fois
+prob_predite <- predict(model, newdata = nouvel_individu, type = "response")
+
+# Afficher la probabilité prédite
+prob_predite
+
+```
+
+Pour un individu de 30 ans et de sexe masculin, la probabilité estimée d'avoir le sentiment d'avoir été discriminé au moins une fois est d'environ 39.12%.
+
+**Question 8**
+
+```{r}
+# Seuil de la règle de resubstitution
+pseuil <- 0.2
+
+# Prédire les probabilités pour chaque individu
+probas_predites <- predict(model, type = "response")
+
+# Appliquer la règle de resubstitution
+valeurs_predites <- ifelse(probas_predites > pseuil, 1, 0)
+
+# Afficher les valeurs prédites
+valeurs_predites
+
+```
+
+**Question 9**
+
+```{r}
+# Obtenir les prédictions pour l'ensemble de données asile
+y_predicted <- predict(model, newdata = asile_4, type = "response")
+
+# Définir un seuil de probabilité
+seuil <- 0.2
+
+# Appliquer la règle de resubstitution pour obtenir les valeurs prédites binaires
+y_predicted_binary <- ifelse(y_predicted > seuil, 1, 0)
+
+# Créer la matrice de confusion
+matrice_confusion <- table(Observé = asile_4$y, Prédit = y_predicted_binary)
+```
+
+```{r}
+# Vecteur des valeurs observées de y
+y_obs <- asile_4$y
+
+# Vecteur des valeurs prédites y^
+y_pred <- valeurs_predites
+
+# Calculer la matrice de confusion
+confusion_matrix <- table(y_obs, y_pred)
+
+# Afficher la matrice de confusion
+confusion_matrix
+
+
+```
+
+Interprétation de la matrice de confusion :
+
+-   Vrais positifs (VP) : Il y a 714 individus pour lesquels la valeur observée de y est "oui" (positif) et la valeur prédite y\^ est également "oui".
+
+-   Faux positifs (FP) : Il y a 1283 individus pour lesquels la valeur observée de y est "non" (négatif) mais la valeur prédite y\^ est "oui" (positif).
+
+-   Vrais négatifs (VN) : Il y a 3 individus pour lesquels la valeur observée de y est "non" (négatif) et la valeur prédite y\^ est également "non".
+
+-   Faux négatifs (FN) : Il n'y a aucun individu pour lesquels la valeur observée de y est "oui" (positif) mais la valeur prédite y\^ est "non" (négatif).
+
+Cette matrice de confusion permet d'évaluer les performances du modèle de classification en comparant les valeurs observées avec les valeurs prédites.
+
+**Question 10**
+
+Pour calculer les quantités demandées à partir de la matrice de confusion, nous utilisons les formules suivantes :
+
+**Taux de mauvais classement :**
+
+$$
+t^* = \frac{\text{Nombre d'observations mal classées}}{\text{Nombre total d'observations}}
+$$
+
+**Sensibilité (taux de vrais positifs) :**
+
+$$
+\text{sensibilité} = \frac{\text{Nombre de vrais positifs}}{\text{Nombre total d'observations avec } y=1}
+$$
+
+**Spécificité (taux de vrais négatifs) :**
+
+$$
+\text{spécificité} = \frac{\text{Nombre de vrais négatifs}}{\text{Nombre total d'observations avec } y=0}
+$$
+
+**L'opposé de la spécificité est équivalent à \\(1\\) moins la spécificité, et représente le taux de faux positifs :**
+
+$$
+\text{Opposé de la spécificité} = 1 - \text{spécificité}
+$$
+
+```{r}
+# Données de la matrice de confusion
+y_obs <- c(3, 0, 1283, 714)
+
+# Calcul des quantités
+n <- sum(y_obs)
+mal_classees <- y_obs[3]
+vrais_positifs <- y_obs[4]
+vrais_negatifs <- y_obs[1]
+
+# Calcul des métriques
+taux_mauvais_classement <- mal_classees / n
+sensibilite <- vrais_positifs / sum(y_obs[3:4])
+specificite <- vrais_negatifs / sum(y_obs[1:2])
+oppose_specificite <- 1 - specificite
+
+# Affichage des résultats
+taux_mauvais_classement
+sensibilite
+specificite
+oppose_specificite
+
+```
+
+**Question 11**
+
+```{r}
+# Fixer la graine aléatoire pour la reproductibilité
+set.seed(123)
+
+# Nombre d'individus dans l'échantillon d'apprentissage
+n_app <- 1200
+
+# Indices des individus pour l'échantillon d'apprentissage
+indices_app <- sample(1:nrow(asile_4), n_app)
+indices_app
+# Créer l'échantillon d'apprentissage
+asile_app <- asile_4[indices_app, ]
+asile_app
+# Créer l'échantillon de validation
+asile_val <- asile_4[-indices_app, ]
+asile_val
+```
+
+```{r}
+# Estimer le modèle logistique à partir de asile_app
+model_app <- glm(y ~ age + sexe, family = binomial, data = asile_app)
+model_app
+
+```
+
+```{r}
+# Prédire les probabilités sur l'échantillon de validation
+probas_val <- predict(model_app, newdata = asile_val, type = "response")
+
+# Seuillage des probabilités pour obtenir les prédictions binaires
+y_pred_val <- ifelse(probas_val > pseuil, 1, 0)
+
+# Calcul de la matrice de confusion
+confusion_matrix <- table(asile_val$y, y_pred_val)
+
+# Calcul des quantités d'intérêt
+n_val <- sum(confusion_matrix)
+mal_classees_val <- confusion_matrix[2]
+vrais_positifs_val <- confusion_matrix[4]
+vrais_negatifs_val <- confusion_matrix[1]
+
+# Calcul des métriques
+taux_mauvais_classement_val <- mal_classees_val / n_val
+sensibilite_val <- vrais_positifs_val / sum(confusion_matrix[2:3])
+specificite_val <- vrais_negatifs_val / sum(confusion_matrix[1:2])
+oppose_specificite_val <- 1 - specificite_val
+
+# Affichage des résultats
+taux_mauvais_classement_val
+sensibilite_val
+specificite_val
+oppose_specificite_val
+
+```
+
+Les résultats de l'estimation du modèle logistique à partir de l'échantillon d'apprentissage **`asile_app`** sont les suivants :
+
+-   L'intercept est estimé à 0.1023.
+
+-   Le coefficient associé à l'âge est estimé à -0.0150.
+
+-   Le coefficient associé au sexe (femme) est estimé à -0.3810.
+
+En ce qui concerne les taux calculés à partir de l'échantillon de validation **`asile_val`** :
+
+-   Le taux de mauvais classement est estimé à environ 0.33875.
+
+-   La sensibilité n'est pas calculable avec les données fournies (NA).
+
+-   La spécificité est estimée à environ 0.66125.
+
+-   L'opposé de la spécificité est également estimé à environ 0.33875.
+
+Ces résultats indiquent que le modèle ne parvient pas à bien classer environ 33.875% des observations dans l'échantillon de validation. La spécificité est assez élevée, ce qui suggère que le modèle a une capacité raisonnable à détecter les vrais négatifs, mais la sensibilité n'est pas calculable avec les données fournies.
+
+Comparaison des estimations entre l'échantillon de validation et l'échantillon de resubstitution :
+
+-   **Taux de mauvais classement :** Le taux de mauvais classement semble légèrement plus élevé dans l'échantillon de validation (environ 33.875%) par rapport à l'estimation précédente dans l'échantillon de resubstitution (environ 64.15%). Cela suggère que le modèle pourrait être moins optimiste lorsqu'il est appliqué à de nouvelles données.
+
+-   **Sensibilité :** La sensibilité n'est pas calculable dans l'échantillon de validation avec les données fournies, alors qu'elle était de 100% dans l'estimation précédente dans l'échantillon de resubstitution. Cela indique que le modèle pourrait avoir une performance variable en termes de détection des vrais positifs lorsqu'il est appliqué à de nouvelles données.
+
+-   **Spécificité :** La spécificité est assez similaire entre les deux estimations, avec une valeur d'environ 66.125% dans l'échantillon de validation et de 100% dans l'estimation précédente dans l'échantillon de resubstitution. Cela suggère que le modèle a une capacité raisonnable à détecter les vrais négatifs, mais il peut y avoir une légère baisse de performance lorsqu'il est appliqué à de nouvelles données.
+
+-   **Opposé de la spécificité :** L'opposé de la spécificité est également similaire entre les deux estimations, avec une valeur d'environ 33.875% dans les deux cas. Cela indique que le taux de faux positifs pourrait rester relativement stable lors de l'application du modèle à de nouvelles données.
+
+Question 12
+
+```{r}
+# Définir les valeurs de seuil
+seuils <- seq(0, 1, by = 0.01)
+
+# Initialiser les vecteurs pour stocker les valeurs de sensibilité et d'opposé de la spécificité
+sensibilites <- numeric(length(seuils))
+opposes_specificite <- numeric(length(seuils))
+
+# Calculer les valeurs de sensibilité et d'opposé de la spécificité pour chaque seuil
+for (i in seq_along(seuils)) {
+  y_pred_val <- ifelse(probas_val > seuils[i], 1, 0)
+  confusion_matrix <- table(asile_val$y, y_pred_val)
+  
+  vrais_positifs_val <- confusion_matrix[4]
+  faux_positifs_val <- confusion_matrix[3]
+  sensibilites[i] <- vrais_positifs_val / sum(confusion_matrix[2:3])
+  opposes_specificite[i] <- 1 - (faux_positifs_val / sum(confusion_matrix[1:2]))
+}
+
+# Tracer la courbe ROC
+plot(opposes_specificite, sensibilites, type = "l", 
+     main = "Courbe ROC", xlab = "1 - Spécificité", ylab = "Sensibilité")
+
+```
+
+**Question 13**
+
+```{r}
+
+# Estimation du modèle logistique avec la variable "work"
+modele_logistique <- glm(y ~ age + sexe + work, family = binomial, data = asile_4)
+
+# Afficher les résultats du modèle
+summary(modele_logistique)
+
+
+```
+
+```{r}
+# Créer les échantillons d'apprentissage et de validation
+set.seed(123)  # Fixer la graine aléatoire pour la reproductibilité
+indices_apprentissage <- sample(1:nrow(asile_4), 1200)
+asile_app <- asile_4[indices_apprentissage, ]
+asile_validation <- asile_4[-indices_apprentissage, ]
+
+# Estimer le modèle logistique à partir des données d'apprentissage
+modele_logistique_apprentissage <- glm(y ~ age + sexe + work, family = binomial, data = asile_app)
+
+# Prédire les valeurs pour les données de validation
+proba_validation <- predict(modele_logistique_apprentissage, newdata = asile_validation, type = "response")
+
+# Calculer les taux de mauvais classement, sensibilité et spécificité
+# (à compléter avec les calculs correspondants)
+
+
+```
+
+```{r}
+# Installer la librairie pROC si elle n'est pas déjà installée
+install.packages("pROC")
+
+# Charger la librairie pROC
+library(pROC)
+
+# Créer l'objet "roc" pour la courbe ROC
+courbe_roc <- roc(asile_validation$y, proba_validation)
+
+# Afficher la courbe ROC
+plot(courbe_roc, main = "Courbe ROC", col = "blue", lwd = 2)
+
+```
+
+```         
+```
