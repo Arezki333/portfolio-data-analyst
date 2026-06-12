@@ -1,0 +1,602 @@
+---
+title: 'TD3_DM : Statistiques Spatiales'
+author: "**Arezki HASSAK**  \n**Mathieu GRONDIN**  \n**Ablaye Sow SIDIBE**\n"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+toc: true
+toc_depth: 2
+number_sections: true
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+# Introduction
+
+Ce devoir vise à analyser la pauvreté infantile dans le sud et le sud-est des États-Unis en utilisant des méthodes de statistiques spatiales sous R.
+
+Nous allons examiner :\
+-L'autocorrélation spatiale de la proportion d'enfants en situation de pauvreté\
+- L'impact des facteurs socio-économiques à travers des modèles de régression linéaire et spatiale.
+
+# Environnement de travail et les bibliothèques nécessaires
+
+# Chargement des packages
+
+```{r setup, include=FALSE}
+library(spdep)    # Pour l'analyse spatiale
+library(sp)       # Pour la gestion des objets spatiaux
+library(sf)
+library(tmap)
+library(ggplot2)
+library(corrplot)
+library(car)
+library(lmtest)
+
+# Définition du répertoire de travail
+setwd("C:/Users/MASS/Desktop/M2 MASS POP/S2/Statistiques Spatiale/TD/TD3")
+```
+
+# Partie 1 : Etude de l'autocorrélation spatiale de la pauvreté infantile
+
+## 1)
+
+### Chargement des données
+
+```{r}
+south00_shp<-st_read("south00.shp")
+south00_dbf <- st_read("south00.dbf")
+```
+
+### Création du voisinage de type Queen et de la matrice de poids
+
+```{r}
+neighbors <- poly2nb(south00_dbf, queen = TRUE) # Création d'lun objet de voisinage basé sur la contiguïté des polygones (comtés voisins)
+weights <- nb2listw(neighbors, style = "W", zero.policy = TRUE) # Créer la matrice de poids spatiaux à 
+```
+
+## 2) Cartographie de la Pauvreté Infantile (PPOV)
+
+```{r}
+qtm(south00_shp, fill = "PPOV", fill.palette = "-RdBu", title = "Taux de pauvreté infantile")
+
+```
+
+Cette cartographie de la pauvreté infantile par comté dans le Sud/Sud-Est des Etats-Unis permet de visualiser les zones où la pauvreté infantile est élevée ou non.
+Plus précisément, nous voyons que les zones ayant une proportion de pauvreté infantile est plus élevée dans l'extrême ouest, centre et une partie du Nord-Est.
+nous observons que les zones géographiques voisines ont tendance à présenter des taux de pauvreté similaires, ce qui témoigne d'une autocorrélation spatiale.
+Cette concentration de valeurs proches suggère que les dynamiques socio-économiques sont influencées par leur localisation.
+
+## Test de Moran pour l'Autocorrélation Spatiale Globale
+
+Le test de Moran permet de tester l'existence d'une autocorrélation spatiale entre les comtés.
+Pour ce faire nous vérifions tout d'abord si la part des enfants pauvres suit une distribution normale.
+
+```{r}
+hist(south00_dbf$PPOV, 
+     col = "skyblue",    
+     border = "black",  
+     main = "Distribution de la pauvreté infantile", 
+     xlab = "Proportion d'enfants en pauvreté", 
+     ylab = "Fréquence")
+
+```
+
+```{r}
+# Test de Shapiro-Wilk sur PPOV
+shapiro.test(south00_dbf$PPOV)
+```
+
+Le test de Shapiro-Wilk rejette l'hypothèse de normalité, indiquant que la distribution du vecteur d'observation ne suit pas une loi normale.
+
+Ainsi, nous testons :
+
+• H0 : absence d'autocorrélation spatiales globale (c'est-à-dire que la répartition de la pauvreté infantile est spatialement aléatoire).
+• H1 : autocorrélation spatiales positive (c'est-à-dire que la répartition de la pauvreté infantile est non aléatoire et présente une structure spatiale).
+
+```{r}
+# Utiliser la fonction moran.mc() pour tester l'autocorrélation spatiale
+moran_result <- moran.mc(south00_dbf$PPOV, weights, nsim = 999) 
+moran_result
+```
+
+```{r}
+# Utiliser la fonction moran.test() pour tester l'autocorrélation spatiale
+moran_test_result <- moran.test(south00_dbf$PPOV, weights)
+# Afficher les résultats
+moran_test_result
+```
+
+La fonction moran.mc() utilise la simulation pour obtenir l'indice de Moran et la p-valeur, ce qui peut être particulièrement utile lorsqu'il n'y a pas de distribution normale.
+Cela permet de tester l'autocorrélation dans des contextes plus complexes ou lorsque la distribution sous-jacente de l'indice de Moran n'est pas claire.
+Cependant, moran.test() est plus rapide et donne un test basé sur la distribution théorique de Moran's I, ce qui est valable lorsque l'on suppose que la distribution suit les hypothèses standards (notamment, que la distribution des valeurs de la variable suit un modèle de distribution normale).
+
+La statistique de Moran I obtenue est 0.5893, indiquant une forte autocorrélation spatiale positive.
+Cela signifie que les zones présentant des niveaux similaires de pauvreté infantile sont géographiquement regroupées plutôt que réparties de manière aléatoire.
+
+Nombre de simulations : 999 répétitions + 1 valeur observée = 1000 simulations Rang observé : 1000, ce qui signifie que toutes les valeurs simulées sont inférieures à la valeur observée de Moran I.
+p-value = 0.001 : Moins de 0.1% des valeurs simulées dépassent la valeur observée de Moran I.
+
+Avec un risque de première espèce de 5%, on a p-valeur\<5% ce qui conduit à rejeter H0 et à choisir H1 : donc il existe une association spatiale positive.
+
+```{r}
+# Histogramme des valeurs simulées de Moran's I sous H0 (bootstrap)
+hist(moran_result$res[1:999], 
+     breaks = 20,           # Nombre de classes pour lisser l'histogramme
+     freq = TRUE,           # Affichage en fréquence
+     col = "lightblue",     # Couleur des barres
+     border = "black",      # Bordures noires pour lisibilité
+     main = "Répartition des valeurs de I simulées", 
+     xlab = "Simulated Moran's I", 
+     xlim = c(-0.04, 0.04),  # Restriction de l'axe X entre -0.04 et 0.04
+     ylim = c(0, max(hist(moran_result$res[1:999], plot = FALSE)$counts) * 1.2))  # Ajustement Y
+
+# Ajouter une ligne rouge pour la valeur observée de Moran
+
+```
+
+```{r}
+# QQ-plot restreint à l'intervalle [-0.04, 0.04]
+qqnorm(moran_result$res, 
+       main = "Distribution des statistiques bootstrap sous H0", 
+       xlab = "Theoretical Quantiles", 
+       ylab = "Sample Quantiles",
+       ylim = c(-0.04, 0.04))  # Limite de l'axe Y
+
+# Ajouter la ligne de référence pour la normalité
+qqline(moran_result$res, col = "red", lwd = 2)
+
+
+```
+
+La distribution des statistiques bootstrap semble gaussienne et l'hypothèse de randomisation semble vérifiée.
+
+## 4) Test d'association spatiale locale
+
+```{r}
+local_moran <- localmoran(south00_dbf$PPOV, weights)
+south00_dbf$LISA <- local_moran[,1]
+
+```
+
+Tout d'abord, nous avons calculé les indices locaux de Moran à l'aide de la fonction localmoran() ci-dessus.
+
+Nous obtenons une nouvelle colonne LISA dans la table south00_dbf qui présente des valeurs d'autocorrélation spatiale locale.
+
+-   Lorsque la valeur de l'autocorrélation spatiale de la région est positive, cela veut dire que la région qui a une forte (resp faible) pauvreté est entourée de régions où la pauvreté est également élevée (resp faible).
+
+-   Lorsque la valeur de l'autocorrélation spatiale de la région est négative, cela veut dire que la région qui a une forte (resp faible) pauvreté est entourée de régions où la pauvreté est faible (resp élevée).
+
+-   Lorsque la valeur est proche de 0, il y a une absence d'autocorrélation locale.
+
+```{r}
+south00_dbf$pval_correc <- p.adjust(local_moran[,5], method = "holm")
+```
+
+Ensuite, nous avons effectué une correction des p-valeurs en utilisant la méthode de Holm avec la fonction p.adjust() ci-dessus.
+En effectuant cette manipulation, cela permet d'éviter le problème des faux positifs lorsque l'on effectue le calcul des indices locaux de Moran.
+
+```{r}
+sr=as.vector(scale(south00_dbf$PPOV))
+moran.plot(sr,weights,zero.policy=TRUE, xlab = "PPOV standardisé", ylab = "Lag(PPOV) standardisé", main = "Diagramme de Moran")
+abline(h=0, v=0, col="red")
+```
+
+Par la suite, nous avons construit le diagramme de Moran à l'aide des fonctions scale() et moran.plot() ci-dessus.
+C'est un diagramme entre la variable PPOV et son retard spatial (lag) qui est la relation entre la pauvreté infantile d'un comté et celles de ses voisins immédiats.
+Nous voyons que les points se répartissent de manière aléatoire autour de la ligne de zéro, ce qui pourrait indiquer une absence d'autocorrélation spatiale.
+
+```{r}
+# Création des catégories en fonction des résultats LISA
+south00_dbf$lisa_cat <- factor(
+  ifelse(south00_dbf$LISA > 0 & south00_dbf$pval_correc < 0.05, "HH",  # High-High
+         ifelse(south00_dbf$LISA < 0 & south00_dbf$pval_correc < 0.05, "LL",  # Low-Low
+                ifelse(south00_dbf$LISA > 0 & south00_dbf$pval_correc >= 0.05, "LH",  # Low-High (non-significatif)
+                       ifelse(south00_dbf$LISA < 0 & south00_dbf$pval_correc >= 0.05, "HL", "Non-Significant")))))  # High-Low (non-significatif)
+# Convertir l'objet spatial (SpatialPolygonsDataFrame ou SpatialPointsDataFrame) en sf
+south00_sf <- st_as_sf(south00_dbf)
+```
+
+Nous effectuons une carte avec les caractéristiques LISA (HH, LL, LH, HL).
+Les tests LISA permettent de déterminer les zones locales d'autocorrélation spatiale.
+Ces 4 catégories se définissent de la manière suivante : - HH : Zones à forte pauvreté infantile, entourée de zones similaires.
+- LL : Zones à faible pauvreté infantile, entourée de zones similaires.
+- LH : Zones à faible pauvreté infantile, entourée de zones à forte pauvreté.
+- HL : Zones à forte pauvreté infantile, entourée de zones à faible pauvreté.
+
+```{r}
+# Créer une carte en fonction des catégories LISA
+ggplot(south00_sf) +
+  geom_sf(aes(fill = lisa_cat), color = "black", lwd = 0.2) + 
+  scale_fill_manual(values = c("HH" = "red", "LL" = "green", "LH" = "blue", "HL" = "yellow", "Non-Significant" = "grey")) +
+  theme_minimal() +
+  labs(title = "Carte des catégories LISA de la pauvreté infantile",
+       fill = "Catégories LISA") +
+  theme(legend.position = "right")
+# Différencier les zones significatives et non-significatives
+south00_dbf$lisa_signif <- ifelse(south00_dbf$pval_correc < 0.05, "Significative", "Non-Significative")
+```
+
+Nous avons refait la même carte, mais en différenciant les slots non-significatifs (d'après les LISA) des autres.
+
+```{r}
+# Si south00_dbf n'est pas encore un objet sf, vous pouvez le convertir en sf
+library(sf)
+south00_sf <- st_as_sf(south00_dbf)
+
+# Créer la carte avec ggplot2
+ggplot(south00_sf) +
+  geom_sf(aes(fill = lisa_signif), color = "black", lwd = 0.2) + 
+  scale_fill_manual(values = c("Significative" = "blue", "Non-Significative" = "grey")) +
+  theme_minimal() +
+  labs(title = "Carte des zones significatives vs non-significatives",
+       fill = "Signification") +
+  theme(legend.position = "right")
+
+south00_sf <- st_drop_geometry(south00_sf)
+
+```
+
+D'après ce graphique,
+
+les zones coloriées en bleu, indiquent les régions où l'autocorrélation spatiale de la pauvreté infantile est élevée, ce qui signifie que ces zones ont des caractéristiques similaires en termes de proportion d'enfants vivant dans la pauvreté.
+
+les zones coloriées en gris, indiquent les comtés où l'autocorrélation spatiale de la pauvreté infantile n'est pas vérifiée statistiquement, ce qui signifie que la pauvreté infantile dans ces zones n'est pas fortement influencée par des facteurs géographiques voisins.
+
+De plus, nous pouvons observer que les zones significatives sont regroupées géographiquement et que les non-significatives sont dispersées donc l'autocorrélation spatiale est plus homogène dans certaines régions, mais qu'elle est variable dans d'autres.
+Nous pouvons conclure que l'autocorrélation spatiale de la pauvreté infantile n'est pas homogène sur l'ensemble du territoire.
+
+Nous observons globalement une relation linéaire positive entre le taux de pauvreté d'une zone et celui de son voisinage, ce qui confirme les résultats des tests globaux précédents.
+Cette corrélation est relativement forte, comme en témoigne le faible nombre d'observations dans les quadrants LH (faible pauvreté entourée de forte pauvreté) et HL (forte pauvreté entourée de faible pauvreté).
+
+# Partie 2 : Modélisation de la pauvreté
+
+# Modélisation aspatiale :
+
+## 5) Visualiser la matrice de corrélation avec un graphique
+
+```{r}
+
+# Sélection des variables explicatives et de la variable à expliquer (PPOV)
+variables_explicatives <- south00_sf[, c("PHSP","PFHH","PUNEM","PEXTR","PBLK","P65UP","METRO","PHSPLUS")]
+
+# Ajout la variable à expliquer PPOV
+variables_tot <- cbind(PPOV = south00_dbf$PPOV, variables_explicatives)
+
+# Calcul de la matrice de corrélation
+correlation_matrice <- cor(variables_tot, use = "complete.obs")
+
+corrplot(correlation_matrice, type="upper", sig.level = 0.05, method="number",number.cex=0.5)
+```
+
+D'après la matrice des corrélations ci-dessus, nous constatons que les variables PHSPLUS (Logarithme de la proportion de diplômés du secondaire ou plus.) et PPOV (Proportion d'enfants vivant dans la pauvreté) présentent une corrélation de -0,53 donc dans les régions où la proportion d'enfants vivant dans la pauvreté est élevée, la proportion de personnes diplômées du secondaire ou plus est faible, et inversement, dans les régions où la pauvreté infantile est faible, la proportion de diplômées du secondaire ou plus est élevée.
+
+Nous constatons que les variables METRO (Comté métropolitain) et PPOV (Proportion d'enfants vivant dans la pauvreté) présentent une corrélation de -0,42 donc cette relation n'est pas extrêmement forte et que les comtés métropolitains tendent à avoir des taux de pauvreté infantile plus faibles que les comtés non-métropolitains.
+
+Nous observons que les variables PFHH (Proportion de femmes chef de famille) et PPOV (Proportion d'enfants vivant dans la pauvreté) présentent une corrélation de 0,56 donc cette relation est plutôt modérée à forte et dans les régions où la proportion de femmes chef de famille est plus élevée, la proportion d'enfants vivant dans la pauvreté a tendance à être plus élevé aussi.
+
+Nous voyons que les variables PBLK (Proportion d'afro-américains) et PPOV (Proportion d'enfants vivant dans la pauvreté) présentent une corrélation de 0,41 donc cette relation est modérée et dans les régions où la proportion d'afro-américains est plus élevée, la proportion d'enfants vivant dans la pauvreté tend également à être plus élevée.
+
+## 6) Mettre en œuvre le modèle sous R
+
+```{r}
+# Convertion de la variable METRO en facteur
+south00_sf$METRO <- as.factor(south00_sf$METRO)
+levels(south00_sf$METRO)
+
+# Mettre la modalité "0" de la variable METRO comme modalité de référence du modèle
+south00_sf$METRO <- relevel(south00_sf$METRO, ref = "0")
+
+# Création du modèle de régression linéaire multiple
+model_reg <- lm(PPOV ~ PFHH + PBLK + PHSPLUS + PEXTR + PUNEM + METRO + PHSP + P65UP, data = south00_sf)
+summary(model_reg)
+```
+
+En regardant le modèle de régression multiple, nous constatons que les p-valeurs des covariables du modèle sont toutes inférieures à 5% donc elles sont toutes significatives, hormis la covariable P65UP qui a une p-valeur égale à 0,3980\>5% donc elle n'est pas significative.
+
+Concernant l'estimation de la covariable PFHH qui vaut 0.748316, cela veut dire que chaque augmentation d'un point de la proportion de femmes chef de famille est associée à une augmentation de 0,75% de la proportion de la pauvreté infantile.
+
+Concernant l'estimation de la covariable PBLK qui vaut -0.110581, cela veut dire que chaque augmentation d'un point de la proportion d'afro-américains est associée à une diminution de 0,11% de la proportion de la pauvreté infantile.
+
+Concernant l'estimation de la covariable PHSPLUS qui vaut -0.243284, cela veut dire que chaque augmentation d'un point du logarithme de la proportion de diplômés du secondaire ou plus est associée à une diminution de 0,24% de la proportion de la pauvreté infantile.
+
+Concernant l'estimation de la covariable PEXTR qui vaut 0,391433, cela veut dire que chaque augmentation d'un point de la proportion d'employés dans l'industrie extractive est associée à une augmentation de 0,39% de la proportion de la pauvreté infantile.
+
+Concernant l'estimation de la covariable PUNEM qui vaut 1,408049, cela veut dire que chaque augmentation d'un point de la proportion de sans emploi est associée à une augmentation de 1,41% de la proportion de la pauvreté infantile.
+
+Concernant l'estimation de la covariable METRO qui vaut -0,007764, cela veut dire que les comtés métropolitains ont, en moyenne, une réduction de 0,008 point de pourcentage de la proportion de la pauvreté infantile par rapport aux comtés non-métropolitains.
+
+Concernant l'estimation de la covariable PHSP qui vaut 0,048178, cela veut dire que chaque augmentation d'un point de la proportion d'hispaniques est associée à une augmentation de 0,05% de la proportion de la pauvreté infantile.
+
+Cependant, la covariable P65UP n'est pas significative dans le modèle, ce qui signifie qu'elle n'a pas d'impact statistique sur la proportion de la pauvreté infantile.
+
+## 7) En quoi le résultat obtenu pour la variable PBLK dans la régression est incohérent ?
+
+Dans la question 5), nous avons constaté que, en interprétant les corrélations, dans les régions où la proportion d'afro-américains est plus élevée, la proportion d'enfants vivant dans la pauvreté tend également à être plus élevée, tandis que, dans la question 6), nous avons constaté, en interprétant les estimations du modèle, que chaque augmentation d'un point de la proportion d'afro-américains est associée à une diminution de 0,11% de la proportion de la pauvreté infantile, ce qui est incohérent.
+
+## 8) Etude de la multicolinéarité des variables explicatives
+
+```{r}
+
+# Charger le package car
+library(car)
+
+# Ajuster le modèle de régression multiple
+modele_ajuste <- lm(PPOV ~ PFHH + PBLK + PHSPLUS + PEXTR + PUNEM + METRO + PHSP + P65UP, data = south00_sf)
+
+# Calcul des VIF
+vif_val <- vif(modele_ajuste)
+
+# Afficher les résultats
+print(vif_val)
+
+```
+
+Nous avons calculé la VIF pour chaque variable explicative en utilisant la fonction vif(), pour ajuster le modèle de régression multiple.
+Nous obtenons, pour la covariable PBLK, une valeur VIF de 5,224766\>4 donc cela indique qu'elle est fortement corrélée à une ou plusieurs autres variables du modèle.
+Cette covariable possède une grande variance et nous pouvons en déduire que la multicolinéarité est un problème et c'est pour cela que nous retrouvons des résultats incohérents entre les corrélations et les estimations du modèle de régression linéaire.
+
+## Question 9
+
+```{r}
+
+
+# Ajuster le modèle sans PBLK
+modele_sans_PBLK <- lm(PPOV ~ PHSP + PFHH + PUNEM + PEXTR + PHSPLUS + METRO + P65UP, data = south00_sf)
+
+# Résumé du modèle
+summary(modele_sans_PBLK)
+
+# Graphiques de diagnostic du modèle
+plot(modele_sans_PBLK)
+
+# Charger le package spdep
+library(spdep)
+
+# Convertir en spatial
+south00_dbf <- as(south00_dbf, "Spatial")
+
+# Créer une matrice de voisinage spatiale
+matrice_voispa <- coordinates(south00_dbf)
+
+listw <- nb2listw(knn2nb(knearneigh(matrice_voispa, k = 5)), style = "W")
+
+# Test de Moran sur les résidus
+lm.morantest(modele_sans_PBLK, listw)
+
+# Ajouter les résidus au dataset spatial
+south00_dbf$residus <- residuals(modele_sans_PBLK)
+
+# Convertir en format sf
+library(sf)
+south00_sf <- st_as_sf(south00_dbf)
+
+# Cartographie des résidus
+ggplot(south00_sf) +
+  geom_sf(aes(fill = residus), color = "black") + 
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  theme_minimal() +
+  labs(title = "Carte des résidus du modèle",
+       fill = "Résidus") +
+  theme(legend.position = "right")
+
+
+# Charger le package nécessaire
+library(lmtest)
+
+# Effectuer le test de Breusch-Pagan
+bp_test<- bptest(modele_sans_PBLK) 
+
+# Afficher le résultat
+print(bp_test)
+
+
+# Calcul de Moran’s I sur les résidus du modèle_sans_PBLK
+residuals_sans_PBLK <- residuals(modele_sans_PBLK) 
+moran_test <- lm.morantest(modele_sans_PBLK, listw = weights)  # weights = matrice de poids spatiale
+
+print(moran_test)
+```
+
+# Modélisations spatiales :
+
+## 10) Choix entre le modèle LAG et le modèle SEM
+
+Nous devons choisir le modèle LAG ou SEM en utilisant la fonction lm.RStests vu que la fonction lm.LMtests n'existe plus dans le package spdep.
+
+```{r}
+# Ajuster le modèle de régression linéaire simple
+lm_model_simple <- lm(PPOV ~ PFHH + PBLK + PHSPLUS + PEXTR + PUNEM + METRO + PHSP + P65UP, data = south00_sf)
+# Effectuer les tests LM pour choisir entre LAG et SEM
+lm_tests <- lm.RStests(lm_model_simple, listw = listw, test = c("RSerr", "RSlag", "RSerr", "RSlag"))
+
+# Afficher les résultats
+summary(lm_tests)
+
+```
+
+Nous voyons que les coefficients RSerr et RSlag sont significatifs car leurs p-valeurs sont inférieures à 5% mais RSerr\>RSlag en termes d'estimation, donc nous choisissons le modèle SEM.
+
+## 11) Mise en oeuvre du modèle SEM
+
+Nous avons mis en œuvre le modèle choisi qui est le modèle SEM qui va nous permettre de corriger l'autocorrélation spatiale des erreurs dans la régression linéaire multiple.
+Nous avons utilisé la fonction errorsarlm().
+
+```{r}
+# Chargement du package nécessaire
+library(spatialreg)
+
+# Création une matrice de voisinage 
+coords <- st_coordinates(south00_sf)  # Extraction des coordonnées si l'objet est de type sf
+
+
+# Ajuster le modèle SEM (Spatial Error Model)
+modele_SEM <- errorsarlm(PPOV ~ PFHH + PUNEM + PEXTR + P65UP + METRO + PHSPLUS + PHSP, 
+                        data = south00_sf, listw = listw)
+
+# Afficher les résultats du modèle SEM
+summary(modele_SEM)
+
+# Comparaison avec le modèle de régression multiple 
+modele_sans_PBLK <- lm(PPOV ~ PFHH + PUNEM + PEXTR + P65UP + METRO + PHSPLUS + PHSP, data = south00_sf)
+summary(modele_sans_PBLK)
+
+# AIC de modele_sans_PBLK
+AIC(modele_sans_PBLK)
+
+
+```
+
+Pour interpréter le modèle, nous regardons l'effet spatial λ où :
+
+-   Si λ est proche de 0, les erreurs du modèle ne sont pas vraiment spatialement corrélées.
+-   Si λ est positive et significatif, les erreurs du modèle sont spatialement corrélées.
+
+Après diffusion des résultats de ce modèle, nous voyons que λ est significatif car la p-valeur est inférieure à 5% (2.22e-16).
+
+De plus, nous avons le paramètre λ=0.62428 dans le modèle SEM, qui mesure l'autocorrélation spatiale des erreurs.
+Cette valeur positive est relativement élevée et significative induit que les erreurs du modèle sont spatialement corrélées.
+Donc les comtés voisins ont des niveaux de pauvreté infantile à peu près identiques.
+
+Ensuite, nous avons comparé l'effet des variables explicatives du modèle SEM avec les résultats trouvés pour la RLM.
+
+Nous retrouvons à peu près les mêmes effets des variables explicatives sur la variable à expliquer PPOV hormis la variable PUNEM qui a une estimation un peu plus conséquente et qui se rapproche de l'estimation issue du modèle avec PBLK, où l'estimation de la covariable PUNEM vaut 1.465323, cela veut dire que chaque augmentation d'un point de la proportion de sans emploi est associée à une augmentation de 1,47% de la proportion de la pauvreté infantile.
+De plus, contrairement au modèle RLM, la covariable METRO n'est pas significative étant donné que sa p-valeur est supérieure à 5%.
+
+Aussi, nous avons l'AIC du modèle RLM d'une valeur de -4752.575 et l'AIC du modèle SEM d'une valeur de -5084.2.
+
+Donc AIC (Modèle SEM) \< AIC (Modèle RLM) alors le modèle SEM est mieux adapté par rapport au modèle RLM.
+
+## 12) Mise en oeuvre du modèle non choisi
+
+Nous avons également fait tourner le modèle non choisi qui est le modèle LAG qui prend en compte la dépendance spatiale dans la variable à expliquer PPOV.
+Nous avons utilisé la fonction lagsarlm().
+
+```{r}
+# Ajustement du modèle LAG
+modele_LAG <- lagsarlm(PPOV ~ PFHH + PUNEM + PEXTR + P65UP + METRO + PHSPLUS + PHSP, data = south00_sf,listw = listw)
+
+```
+
+```{r}
+# Résumé du modèle
+summary(modele_LAG)
+
+# Utilisation de la fonction anova()
+anova(modele_SEM, modele_LAG, modele_sans_PBLK)
+
+# Utilisation de la fonction LR.sarlm
+LR.Sarlm(modele_SEM, modele_sans_PBLK) 
+LR.Sarlm(modele_LAG, modele_sans_PBLK) 
+
+
+
+```
+
+Ensuite, nous avons comparé les modèles SEM, LAG et RLM à l'aide des fonctions anova() et LR.sarlm().
+En utilisant le critère AIC, nous avons : AIC (Modèle SEM) \< AIC (Modèle LAG) \< AIC (Modèle RLM) donc le modèle SEM est plus préférable.
+En utilisant le test du rapport de vraisemblance, la log-vraisemblance du modèle LAG est de 2512.8 alors que celle du modèle SEM est de 2552.1 et celle du modèle RLM est de 2385.3.
+Donc le modèle SEM est plus vraisemblable pour modéliser la pauvreté infantile.
+
+## 13) Mise en oeuvre du test d'hétérostédasticidé du modèle SEM
+
+Ensuite, nous effectuons le test d'hétéroscédasticité, en appliquant le test de Breusch-Pagan sur le modèle SEM, à l'aide de la fonction bptest() du package lmtest.
+
+```{r}
+library(lmtest)
+
+# Extraction des résidus du modèle SEM
+residuals_SEM <- residuals(modele_SEM)
+
+# Test de Breusch-Pagan sur les résidus du modèle SEM
+bptest(residuals_SEM ~ PFHH + PUNEM + PEXTR + P65UP + METRO + PHSPLUS + PHSP, data = south00_sf)
+```
+
+Formulation des hypothèses :
+
+(H0) : Les résidus sont homoscédastiques (H1) : Les résidus sont hétéroscédastiques
+
+### Règle de décision :
+
+Nous obtenons une p-valeur du test inférieure à 2.2e-16 donc inférieure à 5% donc nous rejetons (H0) et nous avons des résidus hétéroscédastiques.
+Donc le modèle SEM ne paraît pas correctement adapté aux données étant donné, de base, que le modèle SEM est un modèle spatial et non un modèle de régression linéaire.
+
+## 14) Mise en oeuvre du modèle SDM
+
+Le modèle SDM est plus général que les modèles SEM et LAG car il prend en compte la dépendance spatiale dans la variable à expliquer PPOV, que fait le modèle LAG, et la dépendance spatiale des variables explicatives du modèle, que fait le modèle SEM.
+
+## 15) Implémentation du modéle SDM
+
+Nous avons mis en œuvre le modèle SDM en utilisant la fonction lagsarlm() avec l'option type= « mixed ».
+
+```{r}
+# utilisation de la fonction lagsarlm pour ajuster un modèle SDM
+modele_SDM <- lagsarlm(PPOV ~ PFHH + PUNEM + PEXTR + P65UP + METRO + PHSPLUS + PHSP, data = south00_sf, listw = weights, type = "mixed")
+
+# Résumé du modèle
+summary(modele_SDM)
+```
+
+## 16) Comparaison du modèle SDM et SEM
+
+Pour comparer le modèle SDM et SEM, nous avons utilisé la fonction LR.sarlm().
+Cette fonction effectue le test de rapport de vraisemblance qui permet de comparer deux modèles emboîtés de type spatial.
+Le but de ce test est de savoir si le modèle SDM, qui prend en compte l'effet spatial des erreurs et des variables explicatives, apporte une amélioration significative par rapport au modèle SEM, qui prend uniquement en compte l'effet spatial des erreurs.
+
+Formulation du test :
+
+(H0) : L'ajout des interactions spatiales sur les variables explicatives dans le modèle SDM n'apporte pas d'amélioration significative pour expliquer les données, par rapport au modèle SEM.
+
+(H1) : L'ajout des interactions spatiales sur les variables explicatives dans le modèle SDM apporte une amélioration significative pour expliquer les données, par rapport au modèle SEM.
+
+```{r}
+# Charger le package
+library(spatialreg)
+# Comparaison des deux modèles avec LR.Sarlm()
+LR.Sarlm(modele_SEM, modele_SDM)
+```
+
+Grâce à la sortie R, nous avons une p-valeur inférieure à 5%, donc nous rejetons (H0) donc le modèle SDM est plus pertinent pour expliquer les données que le modèle SEM.
+Nous pouvons en déduire que l'ajout d'une interaction exogène nous paraît justifiée.
+
+## 17) Interprétation des effets des covariables sur PPOV et étude des différences avec SEM
+
+```{r}
+# Utilisation de la fonction impact()
+impacts_SDM<-impacts(modele_SDM, R=200, type = "estimate",listw=listw)
+summary(impacts_SDM, zstats=TRUE, short=TRUE)
+
+```
+
+Nous avons interprété les effets des covariables sur PPOV et les éventuelles différences trouvées avec le modèle SEM en utilisant la fonction impact ().
+Nous calculons l'impact des variables explicatives sur la variable à expliquer PPOV dans le modèle spatial SDM en simulant les p-valeurs des tests de significativité des impacts par boostrap.
+Nous analysons les impacts de deux manières : les impacts directs, qui mesurent les effets des covariables sur la variable à expliquer PPOV en considérant l'influence spatiale des voisins, et les impacts indirects, qui mesurent les effets des covariables sur la variable à expliquer PPOV sans considérer l'influence spatiale des voisins.
+
+Concernant la covariable PFHH, une augmentation de la proportion de femmes chef de famille augmente la proportion de pauvreté infantile dans la localité, tandis que, dans les localités voisines, une augmentation de la proportion de femmes chef de famille diminue la proportion de pauvreté infantile.
+
+Concernant la covariable PUNEM, une augmentation de la proportion de sans emploi augmente la proportion de pauvreté infantile dans la localité ou dans les localités voisines.
+Concernant la covariable PEXTR, une augmentation de la proportion d'employés dans l'industrie extractive augmente la proportion de pauvreté infantile dans la localité ou dans les localités voisines.
+
+Concernant la covariable P65UP, une augmentation de la proportion de personnes âgées de 65 ans et plus augmente la proportion de pauvreté infantile dans la localité, tandis que, dans les localités voisines, une augmentation de la proportion de personnes âgées de 65 ans et plus diminue la proportion de pauvreté infantile.
+
+Concernant la covariable METRO, dans un comté métropolitain ou dans les comtés métropolitains, la proportion de la pauvreté infantile est plus faible que dans un comté non métropolitain ou les comtés voisins non métropolitains.
+
+Concernant la covariable PHSPLUS, une augmentation du logarithme de la proportion de diplômés du secondaire ou plus diminue la proportion de pauvreté infantile dans la localité ou dans les localités voisines.
+
+Concernant la covariable PHSP, une augmentation de la proportion d'hispaniques augmente la proportion de pauvreté infantile dans la localité, tandis que, dans les localités voisines, une augmentation de la proportion d'hispaniques diminue la proportion de pauvreté infantile.
+
+En comparant avec le modèle SEM qui étudie les effets directs de ces covariables sur la pauvreté infantile, nous retrouvons des effets à peu près similaires par rapport aux effets dans le modèle SDM.
+Cela peut indiquer que la dépendance spatiale des erreurs capturée par le modèle SEM est assez proche de la dépendance spatiale dans les covariables capturée par le modèle SDM.
+
+## 18) D'après les sorties du modèle SDM
+
+D'après les sorties du modèle SDM, nous avons constaté que l'AIC du modèle SDM est de -5190.8 donc nous avons AIC (Modèle SDM) \< AIC (Modèle SEM).
+
+De plus, le test du rapport de vraisemblance, la log-vraisemblance du modèle SDM est de 2612.412 qui est supérieure à la log-vraisemblance des autres modèles comme le modèle SEM.
+
+Nous pouvons dire que le modèle SDM avec interaction endogène améliore de manière significative la qualité d'ajustement.
+
+Nous pouvons en déduire qu'il était pertinent d'ajouter un terme d'interaction endogène et que le modèle SDM est suffisant pour capter toute l'autocorrélation spatiale contenue dans les données car il prend en compte la dépendance spatiale non seulement dans l'erreur, mais aussi dans les variables explicatives.
