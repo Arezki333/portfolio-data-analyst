@@ -1,0 +1,51 @@
+=====================================================================
+========================== Titre du projet ==========================
+=====================================================================
+
+"Atelier de modélisation de données socio-démographiques à partir de 
+l’enquête Trajectoires et Origines (TeO) –Naturalisation"
+
+Analyse des diplômes et de l'emploi en lien avec le processus de  
+                        naturalisation
+
+Encadrants : Nicolas PECH / Ingrid TUCCI
+
+Auteurs :Mathieu GRONDIN, Ablaye Sow SIDIBE, Arezki HASSAK
+
+=====================================================================
+======================= Structure de l'archive ======================
+=====================================================================
+
+L'archive est divisée en deux fichiers et un sous-dossier, chacun 
+ayant un rôle spécifique dans le déroulement du projet.
+Voici un aperçu des principaux dossiers et fichiers :
+
+==> 1. Rapport_final
+Description : Contient le rapport complet du projet, présentant les 
+objectifs, la méthodologie, les analyses, et les conclusions tirées 
+des résultats obtenus.
+Contenu du fichier : rapport_final.pdf
+
+==> 2. CODE.SAS
+Description : Regroupe tous les commandes du code SAS nécessaires 
+pour reproduire les étapes d’analyse de ce projet, de l'importation 
+des données à la modélisation statistique.
+
+==> Sous-dossiers : 3. Resultats
+Description : Dossier contenant toutes les sorties et résultats des
+analyses, présentés sous forme de tableaux, graphiques et résumés 
+statistiques, Voici l'ensemble des fichiers que le sous-dossier 
+"Résultats" possède : 
+
+     	-tris a plat 4 : Contient les tris à plat pour chaque 
+	variable principale analysée, fournis en format .pdf.
+
+	-triscroisé 1 : Contient les tris croisés entre les 
+	différentes variables explicatives et la variable à 
+        expliquer(Origine de la nationalité française), en
+	format .pdf.
+
+	-modèle_logistique 2 : Résultats du modèle logistique 
+	appliqué pour identifier les déterminants principaux de
+	la naturalisation. Ce fichier inclut le résumé statistique
+	des coefficients et des indicateurs de performance du modèle.
