@@ -1,0 +1,86 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-03-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+ setwd("C:/Users/MASS/Documents/gestion de projet/data_in")
+WB <- read_excel("WB_fin.xlsx")
+UN <- read_excel("UN_fin.xlsx")
+Eurostat <- read_excel("Eurostat_clean(1).xlsx")
+OCDE<- read_excel("OECD(1).xlsx")
+WB
+UN
+Eurostat
+OCDE
+
+```
+```{r}
+UN_2020 <- UN %>%
+filter(source == "UN_2020") %>%  # Correction du filtrage basé sur "source" et sur les annees
+  select(year, from, to, value,source, country_born,Nationality,Refugee,Imputation)  # Sélection des colonnes nécessaires
+```
+
+```{r}
+WDR_2023 <- WB %>%
+filter(source == "WDR_2023") %>%  # Correction du filtrage basé sur "source" et sur les annees
+  select(year, from, to, value,source, country_born,Nationality,Refugee,Imputation)  # Sélection des colonnes nécessaires
+
+```
+
+```{r}
+Eurostat <- Eurostat %>%
+  select(year, from, to, value,source, country_born,Nationality,Refugee,Imputation)  # Sélection des colonnes nécessaires
+
+```
+
+```{r}
+OCDE <- OCDE %>%
+filter(source == "OECD") %>%  # Correction du filtrage basé sur "source" et sur les annees
+  select(year, from, to, value,source, country_born,Nationality,Refugee,Imputation)  # Sélection des colonnes nécessaires
+
+
+                    
+
+
+```
+
+```{r}
+# Charger les bibliothèques nécessaires
+library(dplyr)
+library(tidyr)
+# Fusionner les deux tables en format long
+data_fin <- bind_rows(UN_2020, WDR_2023,Eurostat,OCDE)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Filtrer les données pour la période souhaitée
+filtre_pays <- filter(data_fin, from == "COM", to == "FRA")
+filtre3_fin <- filter(filtre_pays, year %in% 1960:2021)
+
+# Créer le graphique avec des améliorations
+ggplot(data = filtre3_fin, aes(x = year, y = value, color = source, group = source, linetype = source)) +
+  geom_line(size = 1.2) +  # Tracer les lignes avec une épaisseur plus visible
+  geom_point(size = 3, alpha = 0.7) +  # Ajouter des points avec transparence pour lisibilité
+  scale_x_continuous(breaks = seq(1960, 2020, by = 5)) +  # Ajuster l'axe X
+  scale_color_manual(values = c("blue", "red", "green", "purple")) +  # Personnaliser les couleurs
+  labs(title = "Le nombre de Brésiliens en France (1960-2023) ",
+       subtitle = "Données issues de la Banque Mondiale",
+       x = "Année",
+       y = "Stock de migrants internationaux",
+       color = "",
+       linetype = "Source") +  
+  theme_minimal() +  # Appliquer un thème propre
+   guides(linetype = "none") +
+  theme(legend.position = "bottom")  # Placer la légende en bas pour lisibilité
+```

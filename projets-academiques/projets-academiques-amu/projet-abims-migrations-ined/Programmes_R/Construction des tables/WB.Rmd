@@ -1,0 +1,204 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-02-18"
+---
+
+```{r setup, include=FALSE}
+# Installer le package si nécessaire
+#install.packages("countrycode")
+
+library(readxl)
+library(countrycode)
+library(writexl)
+setwd("C:/Users/MASS/Documents/gestion de projet/data_in")
+
+df <- read_excel("Table_tipage.xlsx")
+
+country_col <- "Column1"  
+
+df$ISO3C <- countrycode(df[[country_col]], "country.name", "iso3c")
+
+write_xlsx(df, "WB_type.xlsx")
+
+head(df)
+
+df
+
+```
+
+
+```{r}
+setwd("C:/Users/MASS/Documents/gestion de projet/data_in")
+# Charger les bibliothèques
+library(readxl)
+library(tidyr)
+library(dplyr)
+
+# Convertion années en numérique
+year_cols <- c("1960", "1970", "1980", "1990", "2000")
+df[year_cols] <- lapply(df[year_cols], as.numeric)
+
+# Transformation de  la table en format long
+df_long <- df %>%
+  pivot_longer(cols = all_of(year_cols), names_to = "year", values_to = "value") %>%
+  filter(!is.na(value)) %>%
+  mutate(year = as.integer(year)) %>%
+  select(`Column1`, Typage, year, ISO3C) %>%
+  rename(`Country or territory` = `Column1`, Definition = Typage, ISO3 = ISO3C)
+
+
+df_long$source<- 'WB_GMDB_11'
+
+# Sauvegarder la nouvelle table
+write_xlsx(df_long, "df_long.xlsx")
+
+# Afficher un aperçu
+df_long
+
+```
+
+```{r}
+setwd("C:/Users/MASS/Documents/gestion de projet/data_in")
+library(readxl)
+df_long <- read_excel("df_long.xlsx")
+```
+```{r}
+names(df_long)[4]<-"to"
+names(df_long)[2]<-"type"
+```
+
+```{r}
+setwd("C:/Users/MASS/Documents/gestion de projet/data_in")
+library(readxl)
+WB <- read_excel("WB.xlsx")
+```
+
+```{r}
+WB_f <- WB %>%
+  left_join(df_long, by = c("year",  "to" , "source"))
+write_xlsx(WB_f, "C:/Users/MASS/Documents/gestion de projet/data_in/f.xlsx")
+```
+
+
+
+```{r}
+setwd("C:/Users/MASS/Documents/gestion de projet/data_in")
+library(readxl)
+UN <- read_excel("UN.xlsx")
+ 
+```
+
+
+```{r}
+library(dplyr)
+
+# Filtrer  UN avant la jointure
+UN_filtrer <- UN %>%
+filter(source == "UN_2020",year>=1990) %>%  # Correction du filtrage basé sur "source" et sur les annees
+  select(year, from, to, type)  # Sélection des colonnes nécessaires
+
+# Réalisation de la jointure conditionnelle
+WB_fin4 <- WB_f %>%
+  left_join(UN_filtrer, by = c("year", "from", "to"), suffix = c("", "_UN")) %>%
+  mutate(type = coalesce(type_UN, type)) %>%  
+  select(-type_UN)  # Suppression de la colonne temporaire
+
+# Affichage 
+head(WB_fin4)
+
+```
+```{r}
+# Filtrer  UN avant la jointure
+WB_fin <- WB_fin4[,-6]   # Sélection des colonnes nécessaires
+
+```
+
+
+
+```{r}
+library(dplyr)
+
+#Création indicatrice de la variable country_born
+WB_fin$country_born<-NA
+WB_fin$country_born[WB_fin$type=="B"|WB_fin$type=="B R"|WB_fin$type=="FB"|WB_fin$type=="FB(NT)"]<-1
+WB_fin$country_born[is.na(WB_fin$country_born)] <- 0
+```
+
+```{r}
+#Création indicatrice de la variable Nationality
+WB_fin$Nationality<-NA
+WB_fin$Nationality[WB_fin$type=="C"|WB_fin$type=="C R"|WB_fin$type=="NT"]<-1
+WB_fin$Nationality[is.na(WB_fin$Nationality)] <- 0
+```
+
+```{r}
+#Création indicatrice de la variable Refugee
+WB_fin$Refugee<-NA
+WB_fin$Refugee[WB_fin$type=="R"|WB_fin$type=="B R"|WB_fin$type=="C R"]<-1
+WB_fin$Refugee[is.na(WB_fin$Refugee)] <- 0
+
+```
+
+
+```{r}
+#Création indicatrice de la variable Refugee
+WB_fin$Imputation<-NA
+WB_fin$Imputation[WB_fin$type=="I"]<-1
+WB_fin$Imputation[is.na(WB_fin$Refugee)] <- 0
+
+```
+
+```{r}
+write_xlsx(WB_fin, "C:/Users/MASS/Documents/gestion de projet/data_in/WB_fin.xlsx")
+
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Filtrer les données pour la période souhaitée
+filtre_pays <- filter(WB_fin, from == "COM", to == "FRA")
+filtre3_fin <- filter(filtre_pays, year %in% 1960:2021)
+
+# Créer le graphique avec des améliorations
+ggplot(data = filtre3_fin, aes(x = year, y = value, color = source, group = source, linetype = source)) +
+  geom_line(size = 1.2) +  # Tracer les lignes avec une épaisseur plus visible
+  geom_point(size = 3, alpha = 0.7) +  # Ajouter des points avec transparence pour lisibilité
+  scale_x_continuous(breaks = seq(1960, 2020, by = 5)) +  # Ajuster l'axe X
+  scale_color_manual(values = c("blue", "red", "green", "purple")) +  # Personnaliser les couleurs
+  labs(title = "Le nombre de Brésiliens en France (1960-2023) ",
+       subtitle = "Données issues de la Banque Mondiale",
+       x = "Année",
+       y = "Stock de migrants internationaux",
+       color = "",
+       linetype = "Source") +  
+  theme_minimal() +  # Appliquer un thème propre
+   guides(linetype = "none") +
+  theme(legend.position = "bottom")  # Placer la légende en bas pour lisibilité
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Filtrer les données pour la période souhaitée
+filtre_pays <- filter(WB_fin, from == "BRA", to == "GLP")
+filtre3_fin <- filter(filtre_pays, year %in% 1960:2021)
+
+# Créer le graphique avec des améliorations
+ggplot(data = filtre3_fin, aes(x = year, y = value, color = source, group = source, linetype = source)) +
+  geom_line(size = 1.2) +  # Tracer les lignes avec une épaisseur plus visible
+  geom_point(size = 3, alpha = 0.7) +  # Ajouter des points avec transparence pour lisibilité
+  scale_x_continuous(breaks = seq(1960, 2020, by = 5)) +  # Ajuster l'axe X
+  scale_color_manual(values = c("blue", "red", "green", "purple")) +  # Personnaliser les couleurs
+  labs(title = "Le nombre de Brésiliens en Guadeloupe (1960-2000) ",
+       subtitle = "Données issues de la Banque Mondiale",
+       x = "Année",
+       y = "Stock de migrants internationaux",
+       color = "",
+       linetype = "Source") +  
+  theme_minimal() +  # Appliquer un thème propre
+   guides(linetype = "none") +
+  theme(legend.position = "bottom")  # Placer la légende en bas pour lisibilité
+```

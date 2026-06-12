@@ -1,0 +1,904 @@
+---
+title: "Analyse des retards des vols à New York (2013)"
+author: >
+  **Étudiants :** Arezki HASSAK, Mathieu GRONDIN  
+  **Enseignante :** Laurence Reboul  
+  **Université d’Aix-Marseille**  
+  **Formation :** Master 2 MASSPOP  
+  **Année universitaire :** 2024–2025
+output:
+  word_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+Ce projet vise à analyser les retards des vols ayant quitté New York (JFK, LGA, EWR) en 2013, à partir des jeux de données fournis par le package `nycflights13`.\
+Nous utiliserons les packages **dplyr**, **data.table**, **ggplot2** ainsi que des techniques de programmation **MapReduce**.
+
+------------------------------------------------------------------------
+
+# Chargement des packages
+
+```{r}
+install.packages("nycflights13")
+#install.packages(c("ggplot2", "dplyr", "tidyr","data.table"))
+library(nycflights13)
+library(dplyr)
+library(data.table)
+library(ggplot2)
+```
+
+# Partie A : Manipulation de données avec dplyr, data.table et ggplot2
+
+## Chargement des données et jointure flights-airlines
+
+**Avec data.table**
+
+```{r}
+# Conversion des tables en data.table
+fl_dt <- as.data.table(flights)
+al_dt <- as.data.table(airlines)
+
+# Jointure : On ajoute les noms des compagnies
+setkey(fl_dt, carrier)  # Création de la clé pour accélérer la jointure
+jn_dt <- al_dt[fl_dt, on="carrier"]
+
+# Affichage d'un aperçu
+head(jn_dt)
+
+```
+
+**Avec dplyr**
+
+```{r}
+# Jointure simple avec dplyr
+jn <- left_join(flights, airlines, by = "carrier")
+
+# Affichage d'un aperçu
+head(jn)
+
+```
+
+## Ajout des colonnes distance, vitesse, indicateurs de retard
+
+**Avec data.table**
+
+```{r}
+
+
+# On suppose que jn_dt est déjà un data.table
+# Ajout des colonnes en dur
+jn_dt[, dist_km := distance * 1.60934]                           # KM
+jn_dt[, vit_km := dist_km / (air_time / 60)]                    # Vitesse en km/h
+jn_dt[, arr_del := ifelse(!is.na(arr_delay), arr_delay >= 10, NA)]  # Retard à l'arrivée
+jn_dt[, dep_del := ifelse(!is.na(dep_delay), dep_delay >= 10, NA)]  # Retard au départ
+
+# Aperçu
+head(jn_dt[, .(distance, dist_km, air_time, vit_km, arr_delay, arr_del, dep_delay, dep_del)])
+
+```
+
+**Avec dplyr**
+
+```{r}
+
+jn <- jn %>%
+  mutate(
+    dist_km = distance * 1.60934,                              
+    vit_km = dist_km / (air_time / 60),                        # Vitesse 
+    arr_del = if_else(!is.na(arr_delay), arr_delay >= 10, NA),# Retard à l’arrivée
+    dep_del = if_else(!is.na(dep_delay), dep_delay >= 10, NA) # Retard au départ
+  )
+
+# Aperçu
+jn %>% select(distance, dist_km, air_time, vit_km, arr_delay, arr_del, dep_delay, dep_del) %>% head()
+
+```
+
+## Destinations desservies par au moins deux compagnies
+
+**Avec data.table**
+
+```{r}
+# On cherche pour chaque destination le nombre de compagnies différentes
+res_dt <- jn_dt[, .(nb_comp = uniqueN(name)), by = dest][nb_comp >= 2]
+
+# Affichage des destinations concernées
+head(res_dt)
+```
+
+**Avec dplyr**
+
+```{r}
+# Même opération avec dplyr
+res_dplyr <- jn %>%
+  group_by(dest) %>%
+  summarise(nb_comp = n_distinct(name)) %>%
+  filter(nb_comp >= 2)
+
+# Affichage
+head(res_dplyr)
+
+```
+
+## Résumé statistique
+
+**Avec data.table**
+
+```{r}
+
+# Résumé statistique avec data.table
+stat_summary_dt <- jn_dt[, .(
+  # Proportion de données manquantes
+  missing_arr_delay = mean(is.na(arr_delay)),
+  missing_dep_delay = mean(is.na(dep_delay)),
+  
+  # Retard moyen et écart-type à l'arrivée, en cas de retard
+  mean_arr_delay = mean(arr_delay[arr_delay > 0], na.rm = TRUE),
+  sd_arr_delay = sd(arr_delay[arr_delay > 0], na.rm = TRUE),
+  
+  # Proportion de retards à l'arrivée
+  prop_arr_delay = mean(arr_del == 1, na.rm = TRUE)
+)]
+
+# Afficher le résumé
+print(stat_summary_dt)
+
+
+```
+
+**Avec dplyr**
+
+```{r}
+
+# Résumé statistique avec dplyr
+stat_summary <- jn %>%
+  summarise(
+    # Proportion de données manquantes
+    missing_arr_delay = mean(is.na(arr_delay)),
+    missing_dep_delay = mean(is.na(dep_delay)),
+    
+    # Retard moyen et écart-type à l'arrivée, en cas de retard
+    mean_arr_delay = mean(arr_delay[arr_delay > 0], na.rm = TRUE),
+    sd_arr_delay = sd(arr_delay[arr_delay > 0], na.rm = TRUE),
+    
+    # Proportion de retards à l'arrivée (retard >= 10 min)
+    prop_arr_delay = mean(arr_del == 1, na.rm = TRUE)
+  )
+
+# Afficher le résumé
+print(stat_summary)
+
+
+```
+
+## les vols arrivés avec plus de deux heures de retard, mais qui ne sont pas partis en retard
+
+**Avec data.table**
+
+```{r}
+# Vols arrivés avec >2h de retard mais partis sans retard (ou en avance)
+vols_retard_dt <- jn_dt[arr_delay > 120 & dep_delay <= 0]
+
+# Affichage simple
+head(vols_retard_dt)
+
+```
+
+**Avec dplyr**
+
+```{r}
+library(dplyr)
+
+# Vols arrivés avec >2h de retard mais partis à l'heure
+vols_retard_dplyr <- jn %>%
+  filter(arr_delay > 120, dep_delay <= 0)
+
+# Affichage simple
+head(vols_retard_dplyr)
+
+```
+
+## Un fichier donnant, pour chaque compagnie : le nombre de vols effectués, le pourcentage de ces vols retardés à l'arrivée, le retard moyen et le retard maximal à l'arrivée. Quelles sont les 10 compagnies ayant les plus grands pourcentages de retards à l'arrivée ?
+
+**Avec data.table**
+
+```{r}
+
+# Statistiques par compagnie
+stats_carrier_dt <- jn_dt[, .(
+  n_vols = .N,
+  pourc_retard = mean(arr_del, na.rm = TRUE) * 100,
+  retard_moyen = mean(arr_delay[arr_delay > 0], na.rm = TRUE),
+  retard_max = max(arr_delay, na.rm = TRUE)
+), by = carrier]
+
+# Voir les 10 compagnies avec le plus grand % de retards
+top10_retards_dt <- stats_carrier_dt[order(-pourc_retard)][1:10]
+
+# Afficher
+stats_carrier_dt
+top10_retards_dt
+
+```
+
+**Avec dplyr**
+
+```{r}
+# Statistiques par compagnie
+stats_carrier_dplyr <- jn %>%
+  group_by(carrier) %>%
+  summarise(
+    n_vols = n(),
+    pourc_retard = mean(arr_del, na.rm = TRUE) * 100,
+    retard_moyen = mean(arr_delay[arr_delay > 0], na.rm = TRUE),
+    retard_max = max(arr_delay, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# Voir les 10 compagnies avec le plus grand % de retards
+top10_retards_dplyr <- stats_carrier_dplyr %>%
+  arrange(desc(pourc_retard)) %>%
+  slice(1:10)
+
+# Afficher
+stats_carrier_dplyr
+top10_retards_dplyr
+```
+
+## Un tableau donnant pour chaque mois, la proportion relative de vols retardés et de vols non retardés à l'arrivée. Ce tableau sera présenté par mois (en ligne) × indicatrice de retard (en colonne). Représenter ces proportions avec un graphique adapté.
+
+**Avec data.table**
+
+```{r}
+
+# Filtrer les lignes valides
+jn_dt_valid <- jn_dt[!is.na(arr_del)]
+
+# Comptage par mois et indicatrice
+tab_mois_dt <- jn_dt_valid[, .N, by = .(month, arr_del)]
+tab_mois_dt[, prop := N / sum(N), by = month]
+
+# Tableau croisé avec dcast
+tab_croise_dt <- dcast(tab_mois_dt, month ~ arr_del, value.var = "prop")
+setnames(tab_croise_dt, c("month", "Non_retardé", "Retardé"))  # Renommer les colonnes logiques
+print(tab_croise_dt)
+
+
+
+```
+
+**Avec dplyr**
+
+```{r}
+
+library(tidyr)
+
+# Filtrer les lignes valides
+tab_mois_dplyr <- jn %>%
+  filter(!is.na(arr_del)) %>%
+  group_by(month, arr_del) %>%
+  summarise(N = n(), .groups = "drop") %>%
+  group_by(month) %>%
+  mutate(prop = N / sum(N)) %>%
+  select(month, arr_del, prop) %>%
+  ungroup() %>%
+  mutate(arr_del = ifelse(arr_del, "Retardé", "Non_retardé")) %>%
+  pivot_wider(names_from = arr_del, values_from = prop)
+
+print(tab_mois_dplyr)
+
+
+```
+
+```{r}
+
+library(ggplot2)
+
+# Données au format long pour ggplot
+tab_long <- jn %>%
+  filter(!is.na(arr_del)) %>%
+  group_by(month, arr_del) %>%
+  summarise(N = n(), .groups = "drop") %>%
+  group_by(month) %>%
+  mutate(prop = N / sum(N)) %>%
+  mutate(
+    label = ifelse(arr_del, "Retardé", "Non retardé"),
+    pourcentage = round(prop * 100, 1)
+  )
+
+# Graphique
+ggplot(tab_long, aes(x = factor(month), y = prop, fill = label)) +
+  geom_bar(stat = "identity", position = "stack") +
+  geom_text(aes(label = paste0(pourcentage, "%")), 
+            position = position_stack(vjust = 0.5), color = "white", size = 2.5) +
+  labs(
+    x = "Mois", y = "Proportion",
+    fill = "Statut d'arrivée",
+    title = "Proportion de vols retardés et non retardés par mois"
+  ) +
+  scale_fill_manual(values = c("Non retardé" = "steelblue", "Retardé" = "firebrick")) +
+  theme_minimal()
+
+
+```
+
+## Un tableau contenant les retards moyens (en cas de retard) par compagnie (en ligne) × mois (en colonne).
+
+**Avec data.table**
+
+```{r}
+
+# Calcul : moyenne des retards > 0, par compagnie et mois
+retards_dt <- jn_dt[arr_delay > 0, .(
+  mean_delay = mean(arr_delay, na.rm = TRUE)
+), by = .(carrier, month)]
+
+# Tableau croisé : compagnies en ligne, mois en colonne
+retard_tab_dt <- dcast(retards_dt, carrier ~ month, value.var = "mean_delay")
+print(retard_tab_dt)
+
+```
+
+**Avec dplyr**
+
+```{r}
+library(tidyr)
+retard_tab_dplyr <- jn %>%
+  filter(arr_delay > 0) %>%
+  group_by(carrier, month) %>%
+  summarise(mean_delay = mean(arr_delay, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(
+    names_from = month,
+    values_from = mean_delay,
+    names_sort = TRUE
+  )
+
+print(retard_tab_dplyr)
+
+```
+
+## Pour chaque destination et chaque vol, calculez le retard en vol (time.delay) = temps devol par rapport au temps de vol le plus court vers cette destination et sauvez cette nouvelle variable dans la table, puis pour chaque destination, donner le vol qui a eu le plus de retard en vol avec son origine et sa destination.
+
+**Avec data.table**
+
+```{r}
+
+# 1. Calcul du temps de vol le plus court par destination
+jn_dt[, min_air_time := min(air_time, na.rm = TRUE), by = dest]
+
+# 2. Calcul du retard en vol
+jn_dt[, time_delay := air_time - min_air_time]
+
+# 3. Sélection du vol le plus retardé en vol pour chaque destination
+retard_max_dt <- jn_dt[!is.na(time_delay), .SD[which.max(time_delay)], by = dest]
+
+# Affichage des colonnes utiles
+retard_max_dt[, .(dest, origin, flight, time_delay)]
+
+```
+
+**Avec dplyr**
+
+```{r}
+
+# 1 & 2. Calcul du temps de vol minimal et du retard en vol
+jn <- jn %>%
+  group_by(dest) %>%
+  mutate(min_air_time = min(air_time, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(time_delay = air_time - min_air_time)
+
+# 3. Vol le plus en retard en vol par destination
+retard_max_dplyr <- jn %>%
+  filter(!is.na(time_delay)) %>%
+  group_by(dest) %>%
+  slice_max(time_delay, n = 1, with_ties = FALSE) %>%
+  select(dest, origin, flight, time_delay)
+
+print(retard_max_dplyr)
+
+```
+
+## Donner par mois la destination la plus retardée à l'arrivée. On affichera son retard moyen à l'arrivée et au départ, le nombre et le pourcentage de vols retardés à l'arrivée,la vitesse moyenne de vol en km, la distance moyenne parcourue en km ainsi que le retard en vol moyen (cf 9)).
+
+**Avec data.table**
+
+```{r}
+# 1. Calcul des indicateurs par mois et destination
+retard_mois_dest_dt <- jn_dt[!is.na(arr_delay), .(
+  mean_arr_delay = mean(arr_delay, na.rm = TRUE),
+  mean_dep_delay = mean(dep_delay, na.rm = TRUE),
+  nb_retards_arr = sum(arr_del == TRUE, na.rm = TRUE),
+  total_vols = .N,
+  pct_retards_arr = mean(arr_del == TRUE, na.rm = TRUE),
+  mean_vit_km = mean(vit_km, na.rm = TRUE),
+  mean_dist_km = mean(dist_km, na.rm = TRUE),
+  mean_time_delay = mean(time_delay, na.rm = TRUE)
+), by = .(month, dest)]
+
+# 2. Sélection de la destination la plus retardée à l’arrivée par mois
+retard_max_mois_dt <- retard_mois_dest_dt[
+  , .SD[which.max(mean_arr_delay)], by = month
+]
+
+# Affichage
+retard_max_mois_dt
+
+```
+
+**Avec dplyr**
+
+```{r}
+library(dplyr)
+
+# 1. Calcul des indicateurs par mois et destination
+retard_mois_dest_dplyr <- jn %>%
+  filter(!is.na(arr_delay)) %>%
+  group_by(month, dest) %>%
+  summarise(
+    mean_arr_delay = mean(arr_delay, na.rm = TRUE),
+    mean_dep_delay = mean(dep_delay, na.rm = TRUE),
+    nb_retards_arr = sum(arr_del == TRUE, na.rm = TRUE),
+    total_vols = n(),
+    pct_retards_arr = mean(arr_del == TRUE, na.rm = TRUE),
+    mean_vit_km = mean(vit_km, na.rm = TRUE),
+    mean_dist_km = mean(dist_km, na.rm = TRUE),
+    mean_time_delay = mean(time_delay, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# 2. Sélection de la destination la plus retardée à l’arrivée par mois
+retard_max_mois_dplyr <- retard_mois_dest_dplyr %>%
+  group_by(month) %>%
+  slice_max(mean_arr_delay, n = 1, with_ties = FALSE) %>%
+  ungroup()
+
+# Affichage
+print(retard_max_mois_dplyr)
+
+```
+
+## Un graphique permettant de montrer comment le retard moyen à l'arrivée varie en fonction du mois et de la destination.
+
+**Avec data.table**
+
+```{r}
+# Calcul du retard moyen à l’arrivée par mois et destination
+retard_arrivee_mois_dest_dt <- jn_dt[!is.na(arr_delay),
+                                     .(mean_arr_delay = mean(arr_delay, na.rm = TRUE)),
+                                     by = .(month, dest)]
+
+# Graphique heatmap
+ggplot(retard_arrivee_mois_dest_dt, aes(x = factor(month), y = dest, fill = mean_arr_delay)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(
+    low = "lightblue",
+    mid = "yellow",
+    high = "red",
+    midpoint = 0,
+    name = "Retard moyen (min)"
+  ) +
+  labs(
+    x = "Mois",
+    y = "Destination",
+    title = "Retard moyen à l’arrivée par mois et destination"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+**Avec dplyr**
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Calcul du retard moyen à l’arrivée par mois et destination
+retard_arrivee_mois_dest <- jn %>%
+  filter(!is.na(arr_delay)) %>%
+  group_by(month, dest) %>%
+  summarise(mean_arr_delay = mean(arr_delay, na.rm = TRUE), .groups = "drop")
+ggplot(retard_arrivee_mois_dest, aes(x = factor(month), y = dest, fill = mean_arr_delay)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(
+    low = "lightblue",
+    mid = "yellow",
+    high = "red",
+    midpoint = 0,
+    name = "Retard moyen (min)"
+  ) +
+  labs(
+    x = "Mois",
+    y = "Destination",
+    title = "Retard moyen à l’arrivée par mois et destination"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+library(ggplot2)
+
+# Graphique pour visualiser le retard moyen à l'arrivée par mois et destination
+# par mois la destination la plus retardée à l’arrivée
+ggplot(retard_max_mois_dplyr, aes(x = factor(month), y = dest, fill = mean_arr_delay)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(
+    low = "lightblue",        # Retards en avance (négatifs)
+    mid = "yellow",           # Retards modérés
+    high = "red",             # Plus grands retards
+    midpoint = 0,
+    name = "Retard moyen (min)"
+  ) +
+  labs(
+    x = "Mois",
+    y = "Destination",
+    title = "Retard moyen à l'arrivée par mois et destination la plus retardée"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+## Pour un certain nombre de vols, la valeur du retard à l'arrivée est manquante. Ces valeurs manquantes sont probablement des vols annulés. Calculer et représenter le nombre de vols annulés par jour. Y a-t-il une tendance ?
+
+**Avec data.table**
+
+```{r}
+library(data.table)
+
+# Compter les vols annulés par jour
+annules_jour_dt <- jn_dt[is.na(arr_delay),
+                         .(nb_annules = .N),
+                         by = .(year, month, day)]
+annules_jour_dt[, date := as.Date(sprintf("%04d-%02d-%02d", year, month, day))]
+
+# Graphique
+ggplot(annules_jour_dt, aes(x = date, y = nb_annules)) +
+  geom_line(color = "firebrick") +
+  labs(
+    x = "Date",
+    y = "Nombre de vols annulés",
+    title = "Évolution des vols annulés par jour"
+  ) +
+  theme_minimal()
+
+```
+
+**Avec dplyr**
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Identifier les vols annulés (arr_delay manquant) et compter par jour
+annules_jour <- jn %>%
+  filter(is.na(arr_delay)) %>%
+  group_by(year, month, day) %>%
+  summarise(nb_annules = n(), .groups = "drop") %>%
+  mutate(date = as.Date(sprintf("%04d-%02d-%02d", year, month, day)))
+
+# Affichage du graphique
+ggplot(annules_jour, aes(x = date, y = nb_annules)) +
+  geom_line(color = "firebrick") +
+  labs(
+    x = "Date",
+    y = "Nombre de vols annulés",
+    title = "Évolution des vols annulés par jour"
+  ) +
+  theme_minimal()
+
+```
+
+Entre janvier et avril 2013, on observe un pic assez important, plusieurs pics de vols annulés, probablement dus à des conditions météorologiques hivernales. D'autres hausses ponctuelles apparaissent à divers moments de l'année, liées à des événements isolés. Globalement, aucune tendance claire ne se dégage sur l'ensemble de l'année.
+
+## On utilise la table planes pour avoir des informations sur les avions utilisés. Joindre la table principale à la table planes pour inclure l'année de fabrication (ancienneté) de l'avion. A l'aide de tableaux et/ou graphiques, répondre aux questions suivantes : existet-il une relation
+
+-   Entre le retard au départ et le retard à l'arrivée ?
+-   Entre l'année de fabrication de l'avion et son retard à l'arrivée ?
+-   Entre le retard en vol et le retard à l'arrivée ?
+-   Entre la destination et le retard à l'arrivée ? (On pourra se limiter à une seule syntaxe, entre dplyr et data.table)
+
+```{r}
+# Jointure pour ajouter l'année de fabrication
+jn_planes <- jn %>%
+  left_join(planes %>% select(tailnum, plane_year = year), by = "tailnum")
+head(jn_planes)
+```
+
+### Relation entre le retard au départ et à l'arrivée
+
+```{r}
+
+ggplot(jn_planes, aes(x = dep_delay, y = arr_delay)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "lm", color = "red") +
+  labs(title = "Retard au départ vs à l’arrivée", x = "Retard au départ (min)", y = "Retard à l’arrivée (min)") +
+  theme_minimal()
+
+# Calcul de la corrélation entre le retard au départ et à l’arrivée
+corr_dep_arr_delay <- cor(jn_planes$dep_delay, jn_planes$arr_delay, use = "complete.obs")
+corr_dep_arr_delay
+
+
+```
+
+Corrélation : 0.91
+
+Relation très forte : Il existe une corrélation positive très élevée, ce qui signifie que plus un vol part en retard, plus il a de chances d'arriver en retard.
+
+### Relation entre l'année de fabrication et le retard à l'arrivée
+
+```{r}
+ggplot(jn_planes %>% filter(!is.na(plane_year), !is.na(arr_delay)), 
+       aes(x = plane_year, y = arr_delay)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Année de fabrication vs retard à l’arrivée", x = "Année de fabrication", y = "Retard à l’arrivée (min)") +
+  theme_minimal()
+
+# Calcul de la corrélation entre l'année de fabrication et le retard à l'arrivée
+corr_year_arr_delay <- cor(jn_planes$plane_year, jn_planes$arr_delay, use = "complete.obs")
+corr_year_arr_delay
+
+
+```
+
+Corrélation : 0.0177
+
+Aucune relation notable : L'ancienneté de l'avion n'a pratiquement aucun impact sur le retard à l'arrivée.
+
+### Relation entre le retard en vol (time_delay) et le retard à l'arrivée
+
+```{r}
+ggplot(jn_planes, aes(x = time_delay, y = arr_delay)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "lm", color = "darkgreen") +
+  labs(title = "Retard en vol vs retard à l’arrivée", x = "Retard en vol (min)", y = "Retard à l’arrivée (min)") +
+  theme_minimal()
+
+# Calcul de la corrélation entre le retard en vol et le retard à l'arrivée
+corr_time_delay_arr_delay <- cor(jn_planes$time_delay, jn_planes$arr_delay, use = "complete.obs")
+corr_time_delay_arr_delay
+
+```
+
+Corrélation : 0.0998.
+
+Relation tres faible : Il y a un lien léger, mais pas suffisamment fort pour affirmer que le retard en vol explique à lui seul le retard à l'arrivée.
+
+### Relation entre la destination et le retard à l'arrivée
+
+```{r}
+jn_planes %>%
+  filter(!is.na(arr_delay)) %>%
+  group_by(dest) %>%
+  summarise(mean_arr_delay = mean(arr_delay, na.rm = TRUE)) %>%
+  ggplot(aes(x = reorder(dest, mean_arr_delay), y = mean_arr_delay)) +
+  geom_col(fill = "coral") +
+  coord_flip() +
+  labs(title = "Retard moyen à l’arrivée par destination", x = "Destination", y = "Retard moyen (min)") +
+  theme_minimal()
+
+
+# Calcul du retard moyen à l'arrivée par destination
+retard_dest <- jn_planes %>%
+  group_by(dest) %>%
+  summarise(mean_arr_delay = mean(arr_delay, na.rm = TRUE))
+
+# Affichage du tableau
+head(retard_dest)
+
+```
+
+On observe des différences importantes selon les destinations. Certaines destinations comme CAE, TUL, OKC ont des retards moyens élevés (\> 30 min), tandis que d'autres comme LAX, SEA, HNL ont des retards très faibles, voire négatifs (vols arrivés en avance). La destination influence clairement le retard moyen à l'arrivée.
+
+La différences de retard moyen selon les destinations, suggère une certaine influence de la destination sur les retards à l'arrivée. Toutefois, pour comprendre cette relation en profondeur, il serait nécessaire de considérer d'autres paramètres explicatifs comme l'origine du vol, l'année de fabrication du modèle de l'avion, les conditions météorologiques locales ou encore la densité du trafic aérien. De plus, des méthodes statistiques seraient utiles pour mieux isoler l'effet propre de la destination.
+
+## On souhaite expliquer le retard à l'arrivée par les conditions météorologiques au départ.Effectuer une jointure de la table principale à la table weather et calculer la température en degrés Celsius (on rappelle que 𝑡𝐹 = 95𝑡𝐶 +32. )
+
+**data.table**
+
+```{r}
+library(data.table)
+
+# Copier l'objet weather pour le modifier localement
+weather_copy <- copy(weather)
+
+# Convertir en data.table
+setDT(weather_copy)
+
+# S'assurer que jn est aussi un data.table
+setDT(jn)
+
+# Faire la jointure
+jn_weather_dt <- merge(
+  jn,
+  weather_copy[, .(origin, year, month, day, hour, temp, humid, wind_speed, precip)],
+  by = c("origin", "year", "month", "day", "hour"),
+  all.x = TRUE
+)
+
+# Calcul de la température en Celsius
+jn_weather_dt[, temp_c := (temp - 32) * 5 / 9]
+head(jn_weather_dt)
+
+```
+
+**Avec dplyr**
+
+```{r}
+library(dplyr)
+
+# 1. Jointure avec la table weather (attention aux colonnes communes : year, month, day, hour, origin)
+jn_weather <- jn %>%
+  left_join(weather %>% 
+              select(origin, year, month, day, hour, temp, humid, wind_speed, precip), 
+            by = c("origin", "year", "month", "day", "hour"))
+
+# 2. Conversion de la température de Fahrenheit vers Celsius
+jn_weather <- jn_weather %>%
+  mutate(temp_c = (temp - 32) * 5 / 9)
+
+# 3. Afficher un aperçu
+head(jn_weather)
+
+```
+
+## Le lien entre les variables météo au départ et le retard à l'arrivée. On pourra effectuer par exemple une régression linéaire expliquant le retard à l'arrivée, ou une régression logistique expliquant l'indicatrice de retard à l'arrivée (On pourra se limiter à une seule syntaxe entre dplyr et data.table).
+
+```{r}
+
+
+# Filtrage pour la régression logistique
+data_reg_log <- jn_weather_dt %>%
+  filter(!is.na(arr_del), !is.na(temp_c), !is.na(humid), !is.na(wind_speed), !is.na(precip))
+
+# Régression logistique
+modele_logit <- glm(arr_del ~ temp_c + humid + wind_speed + precip, 
+                    data = data_reg_log, 
+                    family = binomial)
+# Résumé du modèle
+summary(modele_logit)
+# odds ratios
+exp(coef(modele_logit))
+
+# Pseudo R² de McFadden
+null_dev <- modele_logit$null.deviance
+resid_dev <- modele_logit$deviance
+pseudo_R2 <- 1 - (resid_dev / null_dev)
+cat("Pseudo R² de McFadden :", round(pseudo_R2, 4), "\n")
+
+
+```
+
+Toutes les variables météo sont hautement significatives (p \< 2e-16). La variable précipitation a un effet très fort : elle multiplie par plus de 100 les chances de retard lorsqu'elle augmente d'une unité. Bien que les effets de temp_c, humid, et wind_speed soient plus modestes individuellement, ils contribuent significativement à l'augmentation de la probabilité de retard.
+
+Le pseudo R² de McFadden (0.0222) est très faible ⇒ le modèle n'explique qu'une faible part du phénomène.
+
+## Les retards sont généralement corrélés dans le temps : même une fois que le problème à l'origine du retard initial a été résolu, les vols ultérieurs sont retardés pour permettre aux vols antérieurs de partir. En utilisant la fonction lag(), étudiez comment le retard d'un vol est lié au retard du vol précédent (à ne faire qu'avec dplyr).
+
+```{r}
+library(dplyr)
+
+#  Nettoyage de base : garder les colonnes essentielles
+data_lag <- jn_planes %>%
+  filter(!is.na(tailnum), !is.na(dep_delay)) %>%  
+  arrange(tailnum, year, month, day, sched_dep_time)  #  Trier par avion et par ordre chronologique
+
+# Ajouter la variable lag : retard du vol précédent pour le même avion
+data_lag <- data_lag %>%
+  group_by(tailnum) %>%
+  mutate(prev_dep_delay = lag(dep_delay)) %>%
+  ungroup()
+
+#  Filtrer les lignes avec un retard précédent non manquant
+data_lag_clean <- data_lag %>%
+  filter(!is.na(prev_dep_delay))
+
+#  Calcul de la corrélation entre les deux retards
+corr_retards <- cor(data_lag_clean$dep_delay, data_lag_clean$prev_dep_delay, use = "complete.obs")
+cat("Corrélation entre le retard d’un vol et celui du vol précédent (même avion) :", round(corr_retards, 4), "\n")
+
+#  Régression linéaire simple pour modéliser la relation
+modele_lag <- lm(dep_delay ~ prev_dep_delay, data = data_lag_clean)
+summary(modele_lag)
+
+```
+
+Il existe une légère tendance à l'accumulation de retard sur un même avion : un vol en retard a un effet modeste sur le suivant.
+
+Mais cette relation est faible, suggérant que d'autres facteurs (météo, trafic, organisation aéroportuaire, etc.) jouent un rôle beaucoup plus important.
+
+------------------------------------------------------------------------
+
+# Partie B : Programmation MapReduce
+
+```{r}
+library(rmr2)
+rmr.options(backend="local")
+```
+
+
+## Écrire un programme MapReduce qui calcule le nombre de vols annulés par compagnie
+
+```{r}
+# MAP : création d'une table avec 'carrier' et une colonne indiquant si le vol est annulé
+map_17_df <- function(df) {
+  df$annule <- is.na(df$arr_delay)
+  return(df[, c("carrier", "annule")])
+}
+
+# REDUCE : somme des vols annulés par compagnie
+reduce_17_df <- function(mapped) {
+  aggregate(annule ~ carrier, data = mapped, sum, na.rm = TRUE)
+}
+
+# APPLICATION
+mapped_17 <- map_17_df(jn)         # jn = ta table de données
+result_17 <- reduce_17_df(mapped_17)
+head(result_17)
+
+```
+
+## Retard maximal par compagnie
+
+```{r}
+# MAP : remplace les NA de arr_delay par 0
+map_18_df <- function(df) {
+  df$arr_delay[is.na(df$arr_delay)] <- 0
+  return(df[, c("carrier", "arr_delay")])
+}
+
+# REDUCE : calcul du maximum par compagnie
+reduce_18_df <- function(mapped) {
+  aggregate(arr_delay ~ carrier, data = mapped, max)
+}
+
+# APPLICATION
+mapped_18 <- map_18_df(jn)
+result_18 <- reduce_18_df(mapped_18)
+head(result_18)
+
+```
+
+## Compagnie avec le plus grand % de vols retardés mensuels 
+
+```{r}
+# MAP : créer une variable arr_del = TRUE si arr_delay >= 10
+map_19_df <- function(df) {
+  df$arr_del <- ifelse(!is.na(df$arr_delay) & df$arr_delay >= 10, 1, 0)
+  return(df[, c("carrier", "month", "arr_del")])
+}
+
+# REDUCE : calcul du % de retards par (carrier, month), puis sélection du max par mois
+reduce_19_df <- function(mapped) {
+  aggregated <- aggregate(arr_del ~ carrier + month, data = mapped, FUN = mean)
+  aggregated$pct_retards <- aggregated$arr_del * 100
+  
+  # Trouver pour chaque mois la ligne avec le % max
+  result <- do.call(rbind, lapply(split(aggregated, aggregated$month), function(df_month) {
+    df_month[which.max(df_month$pct_retards), ]
+  }))
+  
+  return(result[, c("carrier", "month", "pct_retards")])
+}
+
+# APPLICATION
+mapped_19 <- map_19_df(jn)
+result_19 <- reduce_19_df(mapped_19)
+head(result_19)
+
+```
+
+
+
