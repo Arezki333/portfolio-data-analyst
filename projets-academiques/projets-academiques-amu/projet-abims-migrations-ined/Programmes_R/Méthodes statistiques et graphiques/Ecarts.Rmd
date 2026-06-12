@@ -1,0 +1,199 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-03-10"
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(readxl)
+library(countrycode)
+```
+
+## R Markdown
+```{r}
+install.packages("writexl")  # Installer le package si ce n'est pas fait
+library(writexl)  # Charger le package
+
+```
+
+
+```{r}
+setwd("C:/Users/MASS/Documents/gestion de projet/data_in")
+WB <- read_excel("WB_fin.xlsx")
+UN <- read_excel("UN_fin.xlsx")
+Eurostat <- read_excel("Eurostat.xlsx")
+OCDE<- read_excel("OECD(1).xlsx")
+WB
+UN
+Eurostat
+OCDE
+
+```
+
+```{r}
+UN_2020 <- UN %>%
+filter(source == "UN_2020") %>%  # Correction du filtrage basé sur "source" et sur les annees
+  select(year, from, to, value,source, country_born,Nationality,Refugee,Imputation)  # Sélection des colonnes nécessaires
+```
+
+```{r}
+WDR_2023 <- WB %>%
+filter(source == "WDR_2023") %>%  # Correction du filtrage basé sur "source" et sur les annees
+  select(year, from, to, value,source, country_born,Nationality,Refugee,Imputation)  # Sélection des colonnes nécessaires
+
+```
+
+```{r}
+Eurostat <- Eurostat %>%
+  select(year, from, to, value,source, country_born,Nationality,Refugee,Imputation)  # Sélection des colonnes nécessaires
+
+```
+
+```{r}
+OCDE <- OCDE %>%
+filter(source == "OECD") %>%  # Correction du filtrage basé sur "source" et sur les annees
+  select(year, from, to, value,source, country_born,Nationality,Refugee,Imputation)  # Sélection des colonnes nécessaires
+
+
+                    
+OCDE$country_born <- as.numeric(OCDE$country_born)
+OCDE$Nationality <- as.numeric(OCDE$Nationality)
+
+```
+
+```{r}
+# Charger les bibliothèques nécessaires
+library(dplyr)
+library(tidyr)
+# Fusionner les deux tables en format long
+data_fin <- bind_rows(UN_2020, WDR_2023,Eurostat,OCDE)
+
+write_xlsx(data_fin, "doooooo_long.xlsx")
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Filtrer les données pour la période souhaitée
+filtre_pays <- filter(data_fin, from == "COM", to == "FRA")
+filtre3_fin <- filter(filtre_pays, year %in% 1960:2021)
+
+# Créer le graphique avec des améliorations
+ggplot(data = filtre3_fin, aes(x = year, y = value, color = source, group = source, linetype = source)) +
+  geom_line(size = 1.2) +  # Tracer les lignes avec une épaisseur plus visible
+  geom_point(size = 3, alpha = 0.7) +  # Ajouter des points avec transparence pour lisibilité
+  scale_x_continuous(breaks = seq(1960, 2020, by = 5)) +  # Ajuster l'axe X
+  scale_color_manual(values = c("blue", "red", "green", "purple")) +  # Personnaliser les couleurs
+  labs(title = " ",
+       subtitle = "",
+       x = "Année",
+       y = "Stock de migrants internationaux",
+       color = "",
+       linetype = "Source") +  
+  theme_minimal() +  # Appliquer un thème propre
+   guides(linetype = "none") +
+  theme(legend.position = "bottom")  # Placer la légende en bas pour lisibilité
+setwd("C:/Users/MASS/Documents/gestion de projet/data_in")
+# Sauvegarder la nouvelle table
+
+
+
+```
+
+
+```{r}
+# Charger les bibliothèques nécessaires
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Fonction pour analyser les écarts entre sources pour une paire de pays
+analyser_ecarts <- function(df, pays_origine, pays_destination) {
+  
+  # Filtrer les données pour la paire de pays spécifiée
+  df_filtre <- df %>%
+    filter(from == pays_origine, to == pays_destination)
+  
+  # Gérer les doublons en prenant la moyenne des valeurs
+  df_clean <- df_filtre %>%
+    group_by(year, source) %>%
+    summarise(value = mean(value, na.rm = TRUE), .groups = "drop")
+  
+  # Transformer les données en format large (pivot wider)
+  df_pivot <- df_clean %>%
+    pivot_wider(names_from = source, values_from = value)
+
+  # Vérifier qu'il y a au moins deux sources
+  if (ncol(df_pivot) < 3) {
+    stop("Pas assez de sources pour comparer les écarts.")
+  }
+
+  # Calculer les écarts absolus entre chaque paire de sources
+  combinations <- combn(names(df_pivot)[-1], 2, simplify = FALSE)
+  df_ecarts <- df_pivot %>% select(year)
+
+  for (pair in combinations) {
+    col_name <- paste(pair, collapse = " - ")
+    df_ecarts[[col_name]] <- abs(df_pivot[[pair[1]]] - df_pivot[[pair[2]]])
+  }
+
+  # Supprimer les colonnes vides (si toutes les valeurs sont NA)
+  df_ecarts <- df_ecarts %>% select(where(~ any(!is.na(.))))
+
+  # Afficher le DataFrame contenant les écarts
+  print(df_ecarts)
+
+  return(df_ecarts)
+}
+
+
+```
+
+
+```{r}
+setwd("C:/Users/MASS/Documents/gestion de projet/data_in")
+# Définir la paire de pays à analyser (ici Syrie → France)
+pays_origine <- "COM"  # Ex: SYR pour Syrie
+pays_destination <- "FRA"  # Ex: FRA pour France
+# Exécuter la fonction et récupérer les écarts
+df_ecarts_resultat <- analyser_ecarts(data_fin, pays_origine, pays_destination)
+write_xlsx(df_ecarts_resultat, "df_ecarts_resultat.xlsx")
+```
+
+
+```{r}
+
+
+df <- df_ecarts_resultat
+
+# Transformer les données pour ggplot
+df_long <- df %>%
+  pivot_longer(cols = -year, names_to = "variable", values_to = "value")
+
+# Identifier les valeurs aberrantes
+outliers_df <- df_long %>%
+  group_by(variable) %>%
+  filter(!is.na(value)) %>%
+  summarise(Q1 = quantile(value, 0.25),
+            Q3 = quantile(value, 0.75),
+            IQR = Q3 - Q1) %>%
+  left_join(df_long, by = "variable") %>%
+  filter(value < (Q1 - 1.5 * IQR) | value > (Q3 + 1.5 * IQR)) %>%
+  select(year, variable, value)
+
+# Tracer le boxplot avec les valeurs aberrantes mises en évidence
+ggplot(df_long, aes(x = variable, y = value)) +
+  geom_boxplot(outlier.shape = NA) +  # Supprimer les points aberrants par défaut
+  geom_jitter(data = outliers_df, aes(x = variable, y = value), 
+              color = "red", size = 2) +  # Ajouter les points des valeurs aberrantes en rouge
+  geom_text(data = outliers_df, aes(x = variable, y = value, label = year),
+            color = "blue", hjust = -0.2, size = 3) +  # Ajouter les étiquettes des années
+  labs(title = "Boxplot des écarts avec mise en évidence des valeurs aberrantes",
+       x = "Type d'écart",
+       y = "Valeur des écarts") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
